@@ -241,7 +241,9 @@ func TestLoginTwiceReusesAccount(t *testing.T) {
 func TestAppleLoginFlow(t *testing.T) {
 	env := newFlowEnv(t, "apple-sub-flow", "apple@privaterelay.appleid.com")
 
-	w := env.do(t, http.MethodPost, "/api/auth/apple", "", AppleLoginRequest{Code: "code-1"})
+	name := "김대원"
+	w := env.do(t, http.MethodPost, "/api/auth/apple", "",
+		AppleLoginRequest{Code: "code-1", Nickname: &name})
 	if w.Code != http.StatusOK {
 		t.Fatalf("애플 로그인 status = %d (body: %s)", w.Code, w.Body)
 	}
@@ -252,6 +254,69 @@ func TestAppleLoginFlow(t *testing.T) {
 	}
 	if login.User.Email == nil || *login.User.Email != "apple@privaterelay.appleid.com" {
 		t.Errorf("Email = %v", login.User.Email)
+	}
+	if login.User.Nickname == nil || *login.User.Nickname != "김대원" {
+		t.Errorf("Nickname = %v, want 김대원", login.User.Nickname)
+	}
+}
+
+// 애플은 이름을 최초 인증 때 한 번만 준다. 두 번째 로그인에는 이름이 없는데,
+// 그때 처음 저장한 이름이 지워지면 되찾을 방법이 없다.
+func TestAppleNamePersistsAcrossLogins(t *testing.T) {
+	env := newFlowEnv(t, "apple-name-once", "")
+
+	name := "김대원"
+	first := decodeTokens(t, env.do(t, http.MethodPost, "/api/auth/apple", "",
+		AppleLoginRequest{Code: "code-1", Nickname: &name}))
+	if first.User.Nickname == nil {
+		t.Fatal("첫 로그인에 이름이 저장되지 않음")
+	}
+
+	// 두 번째 로그인 — 클라이언트가 이름을 보내지 않는다
+	second := decodeTokens(t, env.do(t, http.MethodPost, "/api/auth/apple", "",
+		AppleLoginRequest{Code: "code-2"}))
+
+	if second.User.Nickname == nil {
+		t.Fatal("재로그인에서 이름이 지워짐")
+	}
+	if *second.User.Nickname != "김대원" {
+		t.Errorf("Nickname = %q, want 김대원", *second.User.Nickname)
+	}
+}
+
+// 사용자가 이름 제공에 동의하지 않으면 fullName 이 빈 문자열로 조립되어 온다.
+// 이걸 저장해 버리면 "이름 있음" 이 되어 나중에 진짜 이름이 와도 덮이지 않는다.
+func TestAppleBlankNameIsNotStored(t *testing.T) {
+	env := newFlowEnv(t, "apple-blank-name", "")
+
+	blank := "   "
+	first := decodeTokens(t, env.do(t, http.MethodPost, "/api/auth/apple", "",
+		AppleLoginRequest{Code: "code-1", Nickname: &blank}))
+	if first.User.Nickname != nil {
+		t.Errorf("공백 이름이 저장됨: %q", *first.User.Nickname)
+	}
+
+	// 나중에 진짜 이름이 오면 채워져야 한다
+	name := "김대원"
+	second := decodeTokens(t, env.do(t, http.MethodPost, "/api/auth/apple", "",
+		AppleLoginRequest{Code: "code-2", Nickname: &name}))
+	if second.User.Nickname == nil || *second.User.Nickname != "김대원" {
+		t.Errorf("Nickname = %v, want 김대원", second.User.Nickname)
+	}
+}
+
+// 카카오는 이메일·닉네임을 API 에서 직접 받아온다.
+func TestKakaoLoginStoresEmailAndNickname(t *testing.T) {
+	env := newFlowEnv(t, "unused", "")
+
+	login := decodeTokens(t, env.do(t, http.MethodPost, "/api/auth/kakao", "",
+		KakaoLoginRequest{AccessToken: "sdk-token"}))
+
+	if login.User.Email == nil || *login.User.Email != "k@ex.com" {
+		t.Errorf("Email = %v", login.User.Email)
+	}
+	if login.User.Nickname == nil || *login.User.Nickname != "카카오유저" {
+		t.Errorf("Nickname = %v", login.User.Nickname)
 	}
 }
 

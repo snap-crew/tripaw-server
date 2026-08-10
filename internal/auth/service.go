@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/daewon/tripaw-server/internal/oauth"
 	"github.com/daewon/tripaw-server/internal/token"
@@ -28,7 +29,11 @@ func NewService(
 
 // LoginApple 은 앱이 받아온 애플 authorization code 로 로그인한다.
 // 처음이면 가입까지 함께 처리한다.
-func (s *Service) LoginApple(ctx context.Context, code string) (*User, *token.Pair, error) {
+//
+// nickname 은 클라이언트가 넘겨준 표시 이름이다. 애플은 id_token 에 이름을
+// 담지 않고 최초 인증 때 클라이언트에만 주기 때문에, 서버가 스스로 알아낼 방법이
+// 없어서 받아둔다. 두 번째 로그인부터는 nil 로 와도 기존 값이 유지된다.
+func (s *Service) LoginApple(ctx context.Context, code string, nickname *string) (*User, *token.Pair, error) {
 	info, err := s.apple.ExchangeCode(ctx, code)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %v", ErrProviderRejected, err)
@@ -38,7 +43,23 @@ func (s *Service) LoginApple(ctx context.Context, code string) (*User, *token.Pa
 		Provider:    ProviderApple,
 		ProviderSub: info.Sub,
 		Email:       info.Email,
+		Nickname:    normalizeName(nickname),
 	})
+}
+
+// normalizeName 은 클라이언트가 보낸 이름을 다듬는다.
+// 애플 fullName 은 사용자가 이름 제공에 동의하지 않으면 빈 문자열로 조립되어
+// 오는 경우가 있다. 빈 값을 저장하면 "이름 있음" 으로 취급되어 나중에 진짜
+// 이름이 와도 COALESCE 가 덮지 않는다.
+func normalizeName(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*s)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 // LoginKakao 는 앱의 카카오 SDK 가 받아온 액세스 토큰으로 로그인한다.
@@ -52,7 +73,7 @@ func (s *Service) LoginKakao(ctx context.Context, accessToken string) (*User, *t
 		Provider:     ProviderKakao,
 		ProviderSub:  info.Sub,
 		Email:        info.Email,
-		Nickname:     info.Nickname,
+		Nickname:     normalizeName(info.Nickname),
 		ProfileImage: info.ProfileImage,
 	})
 }

@@ -3,9 +3,19 @@ package auth
 import "time"
 
 // AppleLoginRequest 는 POST /api/auth/apple 의 본문이다.
-// Code 는 앱의 Sign in with Apple 에서 받은 authorization code 다.
 type AppleLoginRequest struct {
+	// Code 는 앱의 Sign in with Apple 에서 받은 authorization code 다.
 	Code string `json:"code" binding:"required"`
+
+	// Nickname 은 사용자 표시 이름이다.
+	//
+	// 애플 id_token 에는 이름이 없다. 이름은 iOS 의
+	// ASAuthorizationAppleIDCredential.fullName 으로만 오고, 그것도 사용자가
+	// 우리 앱을 처음 인증할 때 딱 한 번이다. 그래서 클라이언트가 그때 받아서
+	// 여기에 실어 보내야 한다. 놓치면 애플에 다시 요청할 방법이 없다.
+	//
+	// 두 번째 로그인부터는 비어 있어도 된다. 처음 저장한 값이 유지된다.
+	Nickname *string `json:"nickname"`
 }
 
 // KakaoLoginRequest 는 POST /api/auth/kakao 의 본문이다.

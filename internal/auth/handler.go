@@ -40,7 +40,7 @@ func (h *Handler) loginApple(c *gin.Context) {
 		return
 	}
 
-	user, pair, err := h.svc.LoginApple(c.Request.Context(), req.Code)
+	user, pair, err := h.svc.LoginApple(c.Request.Context(), req.Code, req.Nickname)
 	if err != nil {
 		writeAuthError(c, err)
 		return
