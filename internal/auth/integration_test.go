@@ -78,8 +78,7 @@ func TestUpsertCreatesThenReturnsSameUser(t *testing.T) {
 	}
 }
 
-// 애플은 두 번째 로그인부터 이메일을 주지 않는다.
-// 그냥 덮어쓰면 처음에 받아둔 이메일이 지워진다.
+// 공급자가 값을 주지 않는 재로그인에서 기존 값이 지워지면 안 된다.
 func TestUpsertKeepsEmailWhenProviderOmitsIt(t *testing.T) {
 	repo, _ := testRepo(t)
 	ctx := context.Background()
@@ -184,7 +183,7 @@ func TestFindUserByID(t *testing.T) {
 	ctx := context.Background()
 
 	created, err := repo.UpsertOnLogin(ctx, &User{
-		Provider: ProviderKakao, ProviderSub: "find-me", Nickname: strptr("대원"),
+		Provider: ProviderKakao, ProviderSub: "find-me", Nickname: strptr("테스트유저"),
 	})
 	if err != nil {
 		t.Fatalf("생성: %v", err)

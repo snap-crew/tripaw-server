@@ -32,8 +32,8 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 // ON CONFLICT 로 한 문장에 처리하면 그 경우가 없다.
 //
 // 이미 있는 사용자면 프로필을 갱신하는데, COALESCE 로 "새 값이 있을 때만" 덮는다.
-// 애플은 두 번째 로그인부터 이메일을 주지 않으므로, 그냥 덮으면 처음에 받아둔
-// 이메일이 NULL 로 지워진다.
+// 공급자가 값을 주지 않는 경우가 있기 때문이다. 대표적으로 애플 사용자의 이름은
+// 최초 인증 때 한 번만 오므로, 그냥 덮으면 재로그인할 때마다 지워진다.
 func (r *Repository) UpsertOnLogin(ctx context.Context, u *User) (*User, error) {
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO users (provider, provider_sub, email, nickname, profile_image, last_login_at)

@@ -122,7 +122,7 @@ func TestExchangeCode(t *testing.T) {
 	}
 }
 
-// 애플은 두 번째 로그인부터 이메일을 주지 않는다. 그래도 로그인은 되어야 한다.
+// 이메일 제공에 동의하지 않으면 email 클레임이 없다. 그래도 로그인은 되어야 한다.
 func TestExchangeCodeWithoutEmail(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"id_token":"stub"}`))

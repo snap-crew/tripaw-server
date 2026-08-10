@@ -241,7 +241,7 @@ func TestLoginTwiceReusesAccount(t *testing.T) {
 func TestAppleLoginFlow(t *testing.T) {
 	env := newFlowEnv(t, "apple-sub-flow", "apple@privaterelay.appleid.com")
 
-	name := "김대원"
+	name := "홍길동"
 	w := env.do(t, http.MethodPost, "/api/auth/apple", "",
 		AppleLoginRequest{Code: "code-1", Nickname: &name})
 	if w.Code != http.StatusOK {
@@ -255,8 +255,8 @@ func TestAppleLoginFlow(t *testing.T) {
 	if login.User.Email == nil || *login.User.Email != "apple@privaterelay.appleid.com" {
 		t.Errorf("Email = %v", login.User.Email)
 	}
-	if login.User.Nickname == nil || *login.User.Nickname != "김대원" {
-		t.Errorf("Nickname = %v, want 김대원", login.User.Nickname)
+	if login.User.Nickname == nil || *login.User.Nickname != "홍길동" {
+		t.Errorf("Nickname = %v, want 홍길동", login.User.Nickname)
 	}
 }
 
@@ -265,7 +265,7 @@ func TestAppleLoginFlow(t *testing.T) {
 func TestAppleNamePersistsAcrossLogins(t *testing.T) {
 	env := newFlowEnv(t, "apple-name-once", "")
 
-	name := "김대원"
+	name := "홍길동"
 	first := decodeTokens(t, env.do(t, http.MethodPost, "/api/auth/apple", "",
 		AppleLoginRequest{Code: "code-1", Nickname: &name}))
 	if first.User.Nickname == nil {
@@ -279,8 +279,8 @@ func TestAppleNamePersistsAcrossLogins(t *testing.T) {
 	if second.User.Nickname == nil {
 		t.Fatal("재로그인에서 이름이 지워짐")
 	}
-	if *second.User.Nickname != "김대원" {
-		t.Errorf("Nickname = %q, want 김대원", *second.User.Nickname)
+	if *second.User.Nickname != "홍길동" {
+		t.Errorf("Nickname = %q, want 홍길동", *second.User.Nickname)
 	}
 }
 
@@ -297,11 +297,11 @@ func TestAppleBlankNameIsNotStored(t *testing.T) {
 	}
 
 	// 나중에 진짜 이름이 오면 채워져야 한다
-	name := "김대원"
+	name := "홍길동"
 	second := decodeTokens(t, env.do(t, http.MethodPost, "/api/auth/apple", "",
 		AppleLoginRequest{Code: "code-2", Nickname: &name}))
-	if second.User.Nickname == nil || *second.User.Nickname != "김대원" {
-		t.Errorf("Nickname = %v, want 김대원", second.User.Nickname)
+	if second.User.Nickname == nil || *second.User.Nickname != "홍길동" {
+		t.Errorf("Nickname = %v, want 홍길동", second.User.Nickname)
 	}
 }
 

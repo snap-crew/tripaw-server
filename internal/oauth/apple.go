@@ -27,11 +27,17 @@ const (
 var ErrAppleNoRefreshToken = errors.New("애플이 refresh token 을 주지 않음")
 
 // AppleUser 는 애플 로그인으로 알아낸 사용자 정보다.
+//
+// 이름은 여기에 없다. 애플 id_token 은 sub 와 email 만 담고 이름은 넣지 않는다.
+// 이름은 최초 인증 때 iOS 클라이언트에만 한 번 전달되므로, 서버는 클라이언트가
+// 넘겨주는 값을 받는 수밖에 없다.
 type AppleUser struct {
 	// Sub 는 애플이 준 고유 ID. 우리 users.provider_sub 에 저장한다.
 	Sub string
-	// Email 은 없을 수 있다. "나의 이메일 가리기" 를 켰거나,
-	// 두 번째 이후 로그인이면 애플이 이메일을 주지 않는다.
+	// Email 은 이메일 제공에 동의했다면 매 로그인마다 온다.
+	// "나의 이메일 가리기" 를 켠 경우 실제 주소 대신 @privaterelay.appleid.com
+	// 릴레이 주소가 온다(전달은 되는 주소다).
+	// 동의하지 않았으면 없으므로 nil 을 처리해야 한다.
 	Email *string
 }
 

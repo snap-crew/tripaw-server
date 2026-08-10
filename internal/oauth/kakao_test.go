@@ -42,7 +42,7 @@ func TestKakaoGetUser(t *testing.T) {
 		"kakao_account": {
 			"email": "user@kakao.com",
 			"is_email_verified": true,
-			"profile": {"nickname": "대원", "profile_image_url": "https://img/p.jpg"}
+			"profile": {"nickname": "카카오유저", "profile_image_url": "https://img/p.jpg"}
 		}
 	}`)
 
@@ -57,7 +57,7 @@ func TestKakaoGetUser(t *testing.T) {
 	if user.Email == nil || *user.Email != "user@kakao.com" {
 		t.Errorf("Email = %v", user.Email)
 	}
-	if user.Nickname == nil || *user.Nickname != "대원" {
+	if user.Nickname == nil || *user.Nickname != "카카오유저" {
 		t.Errorf("Nickname = %v", user.Nickname)
 	}
 	if user.ProfileImage == nil || *user.ProfileImage != "https://img/p.jpg" {
