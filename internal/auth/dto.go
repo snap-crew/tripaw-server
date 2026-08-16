@@ -1,6 +1,9 @@
 package auth
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type AppleLoginRequest struct {
 	Code string `json:"code" binding:"required"`
@@ -18,6 +21,23 @@ type RefreshRequest struct {
 
 type DeleteAccountRequest struct {
 	Code string `json:"code"`
+}
+
+type UpdateMeRequest struct {
+	Nickname *string `json:"nickname"`
+
+	ProfileImage json.RawMessage `json:"profileImage"`
+}
+
+func (r *UpdateMeRequest) profileImage() (value *string, set bool, err error) {
+	if r.ProfileImage == nil {
+		return nil, false, nil
+	}
+	var v *string
+	if err := json.Unmarshal(r.ProfileImage, &v); err != nil {
+		return nil, false, err
+	}
+	return v, true, nil
 }
 
 type TokenResponse struct {

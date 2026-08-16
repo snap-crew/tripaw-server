@@ -33,5 +33,9 @@ var (
 
 	ErrProviderRejected = errors.New("소셜 로그인 확인에 실패했습니다")
 
+	ErrInvalidNickname = errors.New("이름은 1자 이상 20자 이하여야 합니다")
+
+	ErrInvalidProfileImage = errors.New("프로필 이미지 주소가 올바르지 않습니다")
+
 	ErrAppleCodeRequired = errors.New("애플 계정 탈퇴에는 authorization code 가 필요합니다")
 )

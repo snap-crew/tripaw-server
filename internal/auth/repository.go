@@ -67,6 +67,30 @@ func (r *Repository) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (r *Repository) UpdateProfile(
+	ctx context.Context, id uuid.UUID,
+	nickname *string, profileImage *string, imageSet bool,
+) (*User, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE users SET
+			nickname      = COALESCE($2, nickname),
+			profile_image = CASE WHEN $4::boolean THEN $3 ELSE profile_image END,
+			updated_at    = now()
+		WHERE id = $1
+		RETURNING `+userColumns,
+		id, nickname, profileImage, imageSet,
+	)
+
+	u, err := scanUser(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("회원 정보 수정: %w", err)
+	}
+	return u, nil
+}
+
 func (r *Repository) ResolveNextStep(ctx context.Context, userID uuid.UUID) (string, error) {
 	var step string
 	err := r.pool.QueryRow(ctx, `

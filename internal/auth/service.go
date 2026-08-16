@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/daewon/tripaw-server/internal/oauth"
@@ -90,6 +91,27 @@ func (s *Service) Logout(ctx context.Context, userID uuid.UUID) error {
 
 func (s *Service) Me(ctx context.Context, userID uuid.UUID) (*User, error) {
 	return s.repo.FindUserByID(ctx, userID)
+}
+
+func (s *Service) UpdateMe(
+	ctx context.Context, userID uuid.UUID, nickname *string, image *string, imageSet bool,
+) (*User, error) {
+	if nickname != nil {
+		trimmed := strings.TrimSpace(*nickname)
+		if trimmed == "" || len([]rune(trimmed)) > 20 {
+			return nil, ErrInvalidNickname
+		}
+		nickname = &trimmed
+	}
+
+	if imageSet && image != nil && *image != "" {
+		u, err := url.Parse(*image)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return nil, ErrInvalidProfileImage
+		}
+	}
+
+	return s.repo.UpdateProfile(ctx, userID, nickname, image, imageSet)
 }
 
 func (s *Service) NextStep(ctx context.Context, userID uuid.UUID) (string, error) {
