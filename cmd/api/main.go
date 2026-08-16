@@ -14,6 +14,7 @@ import (
 	"github.com/daewon/tripaw-server/internal/config"
 	"github.com/daewon/tripaw-server/internal/db"
 	"github.com/daewon/tripaw-server/internal/oauth"
+	"github.com/daewon/tripaw-server/internal/pet"
 	"github.com/daewon/tripaw-server/internal/router"
 	"github.com/daewon/tripaw-server/internal/terms"
 	"github.com/daewon/tripaw-server/internal/token"
@@ -76,6 +77,7 @@ func run() error {
 	handler := router.New(tokens,
 		auth.NewHandler(authService),
 		terms.NewHandler(terms.NewService(terms.NewRepository(pool))),
+		pet.NewHandler(pet.NewService(pet.NewRepository(pool))),
 	)
 
 	srv := &http.Server{
