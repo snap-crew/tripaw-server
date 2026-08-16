@@ -92,6 +92,10 @@ func (s *Service) Me(ctx context.Context, userID uuid.UUID) (*User, error) {
 	return s.repo.FindUserByID(ctx, userID)
 }
 
+func (s *Service) NextStep(ctx context.Context, userID uuid.UUID) (string, error) {
+	return s.repo.ResolveNextStep(ctx, userID)
+}
+
 func (s *Service) DeleteAccount(ctx context.Context, userID uuid.UUID, appleCode string) error {
 	user, err := s.repo.FindUserByID(ctx, userID)
 	if err != nil {

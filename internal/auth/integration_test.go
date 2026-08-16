@@ -336,3 +336,105 @@ func countTokens(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID) int {
 	}
 	return n
 }
+
+func TestResolveNextStep(t *testing.T) {
+	repo, pool := testRepo(t)
+	ctx := context.Background()
+
+	user, err := repo.UpsertOnLogin(ctx, &User{
+		Provider:    ProviderKakao,
+		ProviderSub: "next-step-1",
+	})
+	if err != nil {
+		t.Fatalf("사용자 생성: %v", err)
+	}
+
+	step, err := repo.ResolveNextStep(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("판정: %v", err)
+	}
+	if step != "terms" {
+		t.Fatalf("신규 회원 nextStep = %q, 기대 %q", step, "terms")
+	}
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO user_term_agreements (user_id, term_id, agreed)
+		SELECT $1, id, true
+		FROM (SELECT DISTINCT ON (code) id FROM terms
+		      WHERE required ORDER BY code, effective_from DESC) t`, user.ID)
+	if err != nil {
+		t.Fatalf("필수 약관 동의: %v", err)
+	}
+
+	step, err = repo.ResolveNextStep(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("판정: %v", err)
+	}
+	if step != "home" {
+		t.Fatalf("동의 완료 nextStep = %q, 기대 %q", step, "home")
+	}
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO pet_profile_drafts (user_id, step, payload)
+		VALUES ($1, 1, '{"name":"보리"}'::jsonb)`, user.ID)
+	if err != nil {
+		t.Fatalf("draft 생성: %v", err)
+	}
+
+	step, err = repo.ResolveNextStep(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("판정: %v", err)
+	}
+	if step != "pet_profile" {
+		t.Fatalf("draft 있음 nextStep = %q, 기대 %q", step, "pet_profile")
+	}
+}
+
+func TestResolveNextStepReturnsToTermsAfterRevision(t *testing.T) {
+	repo, pool := testRepo(t)
+	ctx := context.Background()
+
+	user, err := repo.UpsertOnLogin(ctx, &User{
+		Provider:    ProviderKakao,
+		ProviderSub: "next-step-revision",
+	})
+	if err != nil {
+		t.Fatalf("사용자 생성: %v", err)
+	}
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO user_term_agreements (user_id, term_id, agreed)
+		SELECT $1, id, true
+		FROM (SELECT DISTINCT ON (code) id FROM terms
+		      WHERE required ORDER BY code, effective_from DESC) t`, user.ID)
+	if err != nil {
+		t.Fatalf("필수 약관 동의: %v", err)
+	}
+
+	step, err := repo.ResolveNextStep(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("판정: %v", err)
+	}
+	if step != "home" {
+		t.Fatalf("개정 전 nextStep = %q, 기대 %q", step, "home")
+	}
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO terms (code, version, required, title, content_url, effective_from)
+		VALUES ('service', '2.0', true, '(필수) 서비스 이용약관',
+		        'https://trippaw.app/terms/service-2.0', now() + interval '1 day')`)
+	if err != nil {
+		t.Fatalf("개정 약관 삽입: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM terms WHERE version = '2.0'`)
+	})
+
+	step, err = repo.ResolveNextStep(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("판정: %v", err)
+	}
+	if step != "terms" {
+		t.Fatalf("개정 후 nextStep = %q, 기대 %q — 개정판 미동의인데 통과했다", step, "terms")
+	}
+}

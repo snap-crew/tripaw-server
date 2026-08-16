@@ -15,6 +15,7 @@ import (
 	"github.com/daewon/tripaw-server/internal/db"
 	"github.com/daewon/tripaw-server/internal/oauth"
 	"github.com/daewon/tripaw-server/internal/router"
+	"github.com/daewon/tripaw-server/internal/terms"
 	"github.com/daewon/tripaw-server/internal/token"
 	"github.com/gin-gonic/gin"
 )
@@ -72,7 +73,10 @@ func run() error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	handler := router.New(tokens, auth.NewHandler(authService))
+	handler := router.New(tokens,
+		auth.NewHandler(authService),
+		terms.NewHandler(terms.NewService(terms.NewRepository(pool))),
+	)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

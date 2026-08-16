@@ -26,6 +26,8 @@ type TokenResponse struct {
 
 	ExpiresIn int           `json:"expiresIn"`
 	User      *UserResponse `json:"user,omitempty"`
+
+	NextStep string `json:"nextStep,omitempty"`
 }
 
 type UserResponse struct {

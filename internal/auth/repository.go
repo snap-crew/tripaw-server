@@ -67,6 +67,30 @@ func (r *Repository) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (r *Repository) ResolveNextStep(ctx context.Context, userID uuid.UUID) (string, error) {
+	var step string
+	err := r.pool.QueryRow(ctx, `
+		SELECT CASE
+			WHEN EXISTS (
+				SELECT 1 FROM (
+					SELECT DISTINCT ON (code) id FROM terms
+					WHERE required ORDER BY code, effective_from DESC
+				) t
+				WHERE NOT EXISTS (
+					SELECT 1 FROM user_term_agreements a
+					WHERE a.user_id = $1 AND a.term_id = t.id AND a.agreed
+				)
+			) THEN 'terms'
+			WHEN EXISTS (SELECT 1 FROM pet_profile_drafts WHERE user_id = $1)
+				THEN 'pet_profile'
+			ELSE 'home'
+		END`, userID).Scan(&step)
+	if err != nil {
+		return "", fmt.Errorf("다음 단계 판정: %w", err)
+	}
+	return step, nil
+}
+
 func (r *Repository) StoreRefreshToken(
 	ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time,
 ) error {
