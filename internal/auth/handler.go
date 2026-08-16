@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Handler 는 인증 관련 HTTP 엔드포인트다.
 type Handler struct {
 	svc *Service
 }
@@ -19,14 +18,12 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterPublic 은 로그인 없이 부를 수 있는 라우트를 등록한다.
 func (h *Handler) RegisterPublic(rg *gin.RouterGroup) {
 	rg.POST("/auth/apple", h.loginApple)
 	rg.POST("/auth/kakao", h.loginKakao)
 	rg.POST("/auth/refresh", h.refresh)
 }
 
-// RegisterProtected 는 로그인이 필요한 라우트를 등록한다.
 func (h *Handler) RegisterProtected(rg *gin.RouterGroup) {
 	rg.GET("/auth/me", h.me)
 	rg.POST("/auth/logout", h.logout)
@@ -88,7 +85,6 @@ func (h *Handler) refresh(c *gin.Context) {
 		return
 	}
 
-	// 재발급에는 사용자 정보를 싣지 않는다. 필요하면 /auth/me 를 부르면 된다.
 	httpx.OK(c, http.StatusOK, TokenResponse{
 		AccessToken:  pair.AccessToken,
 		RefreshToken: pair.RefreshToken,
@@ -131,8 +127,6 @@ func (h *Handler) deleteAccount(c *gin.Context) {
 		return
 	}
 
-	// 카카오 사용자는 본문이 없어도 된다. 애플만 code 가 필요하고,
-	// 없으면 서비스가 ErrAppleCodeRequired 로 알려준다.
 	var req DeleteAccountRequest
 	_ = c.ShouldBindJSON(&req)
 
@@ -144,8 +138,6 @@ func (h *Handler) deleteAccount(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// requireUserID 는 미들웨어가 넣어둔 사용자 ID 를 꺼낸다.
-// 없으면 라우트 등록이 잘못된 것이므로 500 이 맞다.
 func requireUserID(c *gin.Context) (uuid.UUID, bool) {
 	userID, ok := UserID(c)
 	if !ok {
@@ -160,7 +152,7 @@ func requireUserID(c *gin.Context) (uuid.UUID, bool) {
 func writeAuthError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrProviderRejected):
-		// 공급자가 거부한 이유(코드 만료/재사용 등)는 서버 로그에만 남긴다.
+
 		slog.Warn("소셜 로그인 확인 실패", "path", c.FullPath(), "error", err)
 		httpx.Error(c, http.StatusUnauthorized, "provider_rejected",
 			"소셜 로그인 확인에 실패했습니다. 다시 시도해 주세요")

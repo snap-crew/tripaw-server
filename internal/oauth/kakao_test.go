@@ -11,7 +11,6 @@ import (
 
 const testKakaoAppID = 1234567
 
-// kakaoStub 은 access_token_info 와 user/me 두 엔드포인트를 흉내낸다.
 func kakaoStub(t *testing.T, appID int64, userBody string) *KakaoClient {
 	t.Helper()
 
@@ -65,7 +64,6 @@ func TestKakaoGetUser(t *testing.T) {
 	}
 }
 
-// 다른 앱에서 발급된 토큰으로는 로그인할 수 없어야 한다.
 func TestKakaoRejectsForeignAppToken(t *testing.T) {
 	c := kakaoStub(t, 9999999, `{"id":1}`)
 
@@ -75,7 +73,6 @@ func TestKakaoRejectsForeignAppToken(t *testing.T) {
 	}
 }
 
-// appID 를 0 으로 두면 출처 검사를 건너뛴다(설정 전 로컬 개발용).
 func TestKakaoSkipsVerificationWhenAppIDUnset(t *testing.T) {
 	c := kakaoStub(t, 9999999, `{"id":555}`)
 	c.appID = 0
@@ -89,7 +86,6 @@ func TestKakaoSkipsVerificationWhenAppIDUnset(t *testing.T) {
 	}
 }
 
-// 이메일 제공에 동의하지 않았거나 미인증이면 저장하지 않는다.
 func TestKakaoOmitsUnverifiedEmail(t *testing.T) {
 	c := kakaoStub(t, testKakaoAppID, `{
 		"id": 1,
@@ -105,7 +101,6 @@ func TestKakaoOmitsUnverifiedEmail(t *testing.T) {
 	}
 }
 
-// 동의 항목이 하나도 없으면 회원번호만 온다.
 func TestKakaoMinimalConsent(t *testing.T) {
 	c := kakaoStub(t, testKakaoAppID, `{"id": 777}`)
 

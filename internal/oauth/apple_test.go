@@ -16,7 +16,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// testPrivateKeyPEM 은 테스트용 ES256 키를 PKCS8 PEM 으로 만든다.
 func testPrivateKeyPEM(t *testing.T) string {
 	t.Helper()
 
@@ -41,7 +40,6 @@ func newTestAppleClient(t *testing.T) *AppleClient {
 	return c
 }
 
-// stubVerifier 는 실제 애플 JWKS 대신 미리 정한 클레임을 돌려준다.
 type stubVerifier struct {
 	claims jwt.MapClaims
 	err    error
@@ -59,7 +57,6 @@ func TestClientSecretShape(t *testing.T) {
 		t.Fatalf("clientSecret: %v", err)
 	}
 
-	// 애플이 검증하는 값들이 맞게 들어갔는지 본다(서명 검증은 애플 몫).
 	parsed, _, err := jwt.NewParser().ParseUnverified(secret, jwt.MapClaims{})
 	if err != nil {
 		t.Fatalf("client_secret 파싱: %v", err)
@@ -122,7 +119,6 @@ func TestExchangeCode(t *testing.T) {
 	}
 }
 
-// 이메일 제공에 동의하지 않으면 email 클레임이 없다. 그래도 로그인은 되어야 한다.
 func TestExchangeCodeWithoutEmail(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"id_token":"stub"}`))
@@ -160,13 +156,12 @@ func TestExchangeCodeAppleError(t *testing.T) {
 	if err == nil {
 		t.Fatal("오류를 기대했지만 성공함")
 	}
-	// 원인 파악에 필요하므로 애플이 준 사유가 남아야 한다.
+
 	if !strings.Contains(err.Error(), "invalid_grant") {
 		t.Errorf("애플 오류 사유가 빠짐: %v", err)
 	}
 }
 
-// id_token 검증에 실패하면 로그인이 실패해야 한다.
 func TestExchangeCodeRejectsBadIDToken(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"id_token":"stub"}`))
@@ -246,7 +241,6 @@ func TestParseECPrivateKey(t *testing.T) {
 		t.Errorf("정상 PKCS8 키 파싱 실패: %v", err)
 	}
 
-	// 환경변수에 한 줄로 넣으면 줄바꿈이 \n 문자열로 들어온다.
 	escaped := strings.ReplaceAll(valid, "\n", `\n`)
 	if _, err := parseECPrivateKey(escaped); err != nil {
 		t.Errorf("\\n 이스케이프된 키 파싱 실패: %v", err)

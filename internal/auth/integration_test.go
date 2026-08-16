@@ -11,13 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// testRepo 는 진짜 Postgres 에 붙은 저장소를 만든다.
-//
-// 저장소 계층에서 검증하고 싶은 건 UPSERT 의 COALESCE 동작, DELETE ... RETURNING
-// 의 원자성, ON DELETE CASCADE 처럼 전부 DB 가 하는 일이다. 가짜 DB 로는 확인할 수
-// 없어서 실제 인스턴스를 쓴다.
-//
-// TEST_DATABASE_URL 이 없으면 건너뛴다(make test-db 로 준비).
 func testRepo(t *testing.T) (*Repository, *pgxpool.Pool) {
 	t.Helper()
 
@@ -36,8 +29,6 @@ func testRepo(t *testing.T) (*Repository, *pgxpool.Pool) {
 	}
 	t.Cleanup(pool.Close)
 
-	// 테스트끼리 영향을 주지 않도록 매번 비운다.
-	// refresh_tokens 는 CASCADE 로 함께 지워진다.
 	if _, err := pool.Exec(context.Background(), `TRUNCATE users CASCADE`); err != nil {
 		t.Fatalf("테스트 DB 초기화: %v", err)
 	}
@@ -78,7 +69,6 @@ func TestUpsertCreatesThenReturnsSameUser(t *testing.T) {
 	}
 }
 
-// 공급자가 값을 주지 않는 재로그인에서 기존 값이 지워지면 안 된다.
 func TestUpsertKeepsEmailWhenProviderOmitsIt(t *testing.T) {
 	repo, _ := testRepo(t)
 	ctx := context.Background()
@@ -91,7 +81,6 @@ func TestUpsertKeepsEmailWhenProviderOmitsIt(t *testing.T) {
 		t.Fatalf("첫 로그인: %v", err)
 	}
 
-	// 이메일 없이 재로그인
 	again, err := repo.UpsertOnLogin(ctx, &User{
 		Provider:    ProviderApple,
 		ProviderSub: "apple-sub-2",
@@ -108,7 +97,6 @@ func TestUpsertKeepsEmailWhenProviderOmitsIt(t *testing.T) {
 	}
 }
 
-// 카카오는 프로필이 바뀌면 새 값을 준다. 그때는 갱신되어야 한다.
 func TestUpsertUpdatesChangedProfile(t *testing.T) {
 	repo, _ := testRepo(t)
 	ctx := context.Background()
@@ -139,8 +127,6 @@ func TestUpsertUpdatesChangedProfile(t *testing.T) {
 	}
 }
 
-// 같은 사람이 애플과 카카오 양쪽으로 로그인하면 계정 두 개가 된다.
-// (연동 기능은 없다. 이메일이 같아도 막히지 않는지 확인.)
 func TestUpsertAllowsSameEmailAcrossProviders(t *testing.T) {
 	repo, _ := testRepo(t)
 	ctx := context.Background()
@@ -164,7 +150,6 @@ func TestUpsertAllowsSameEmailAcrossProviders(t *testing.T) {
 	}
 }
 
-// 이메일 없는 사용자가 여럿이어도 문제없어야 한다.
 func TestUpsertAllowsMultipleUsersWithoutEmail(t *testing.T) {
 	repo, _ := testRepo(t)
 	ctx := context.Background()
@@ -205,7 +190,6 @@ func TestFindUserByID(t *testing.T) {
 	}
 }
 
-// 같은 리프레시 토큰은 딱 한 번만 쓸 수 있어야 한다.
 func TestConsumeRefreshTokenIsSingleUse(t *testing.T) {
 	repo, _ := testRepo(t)
 	ctx := context.Background()
@@ -269,7 +253,6 @@ func TestDeleteRefreshTokensByUser(t *testing.T) {
 		t.Fatalf("사용자 생성: %v", err)
 	}
 
-	// 기기 세 대에서 로그인한 상황
 	for _, h := range []string{"d1", "d2", "d3"} {
 		if err := repo.StoreRefreshToken(ctx, user.ID, h, time.Now().Add(time.Hour)); err != nil {
 			t.Fatalf("토큰 저장: %v", err)
@@ -285,7 +268,6 @@ func TestDeleteRefreshTokensByUser(t *testing.T) {
 	}
 }
 
-// 사용자를 지우면 리프레시 토큰도 함께 지워져야 한다(FK CASCADE).
 func TestDeleteUserCascadesTokens(t *testing.T) {
 	repo, pool := testRepo(t)
 	ctx := context.Background()

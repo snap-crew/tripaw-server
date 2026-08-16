@@ -21,8 +21,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// protectedRouter 는 RequireAuth 로 보호된 라우트 하나짜리 엔진을 만든다.
-// 통과하면 미들웨어가 넣은 사용자 ID 를 그대로 돌려준다.
 func protectedRouter(tokens *token.Manager) *gin.Engine {
 	r := gin.New()
 	r.GET("/protected", RequireAuth(tokens), func(c *gin.Context) {
@@ -71,9 +69,6 @@ func TestRequireAuthAcceptsAccessToken(t *testing.T) {
 	}
 }
 
-// HTTP 계층에서도 리프레시 토큰이 막히는지 확인한다.
-// token 패키지 테스트와 겹쳐 보이지만, 미들웨어가 ValidateAccess 대신
-// 종류를 안 가리는 검증을 쓰는 실수를 잡아준다.
 func TestRequireAuthRejectsRefreshToken(t *testing.T) {
 	tokens := token.NewManager(mwSecret, time.Hour, 720*time.Hour)
 
@@ -123,7 +118,6 @@ func TestRequireAuthRejectsBadHeaders(t *testing.T) {
 	}
 }
 
-// 스킴 대소문자는 구분하지 않는다(RFC 7235).
 func TestRequireAuthAcceptsLowercaseBearer(t *testing.T) {
 	tokens := token.NewManager(mwSecret, time.Hour, 720*time.Hour)
 	pair, err := tokens.GeneratePair(uuid.New())
