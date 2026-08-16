@@ -41,3 +41,21 @@ coverage/
 # OS
 .DS_Store
 Thumbs.db
+
+# Go
+/bin/
+/tmp/
+*.exe
+*.test
+*.out
+
+/pipeline/
+
+# 마이그레이션 (DB 는 덤프 복구로 세운다. 이력 파일이라 로컬 보관)
+/migrations/
+
+# DB 백업 (수집 데이터는 용량이 크고 재현 가능한 산출물이 아니므로 로컬 보관)
+backups/
+
+# 공공데이터 원본 파일 (30MB. 포털에서 다시 받을 수 있는 산출물)
+data/raw/
