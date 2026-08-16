@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/daewon/tripaw-server/internal/image"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -151,6 +152,14 @@ func TestCreateRejectsInvalidFields(t *testing.T) {
 		{"품종 누락", func(r *CreateRequest) { r.BreedID = nil }, "invalid_breed"},
 		{"없는 품종", func(r *CreateRequest) { id := 99999; r.BreedID = &id }, "invalid_breed"},
 		{"사진 상대경로", func(r *CreateRequest) { s := "/pets/a.jpg"; r.PhotoURL = &s }, "invalid_photo_url"},
+		{"외부 CDN 주소", func(r *CreateRequest) {
+			s := "https://evil.example.com/a.jpg"
+			r.PhotoURL = &s
+		}, "invalid_photo_url"},
+		{"이미지 아닌 경로", func(r *CreateRequest) {
+			s := "/api/images/not-a-uuid"
+			r.PhotoURL = &s
+		}, "invalid_photo_url"},
 	}
 
 	for _, tc := range cases {
@@ -464,7 +473,7 @@ func TestUpdatePhotoURLThreeStates(t *testing.T) {
 	ctx := context.Background()
 
 	req := validPet(t, pool, "보리")
-	photo := "https://cdn.trippaw.app/pets/first.jpg"
+	photo := image.URLFor(uuid.New())
 	req.PhotoURL = &photo
 
 	created, err := svc.Create(ctx, userID, req)
@@ -492,7 +501,7 @@ func TestUpdatePhotoURLThreeStates(t *testing.T) {
 		t.Errorf("키 없음: photoUrl = %v, 기대 %q (건드리면 안 된다)", got.PhotoURL, photo)
 	}
 
-	next := "https://cdn.trippaw.app/pets/second.jpg"
+	next := image.URLFor(uuid.New())
 	got, err = svc.Update(ctx, userID, created.ID, decode(`{"photoUrl":"`+next+`"}`))
 	if err != nil {
 		t.Fatalf("사진 교체: %v", err)

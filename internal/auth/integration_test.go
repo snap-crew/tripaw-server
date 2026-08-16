@@ -507,8 +507,26 @@ func TestUpdateMeValidatesNickname(t *testing.T) {
 		t.Errorf("저장된 닉네임 %d자, 기대 20자 — 공백이 안 떼졌다", len([]rune(*got.Nickname)))
 	}
 
-	rel := "/pets/a.jpg"
-	if _, err := svc.UpdateMe(ctx, user.ID, nil, &rel, true); !errors.Is(err, ErrInvalidProfileImage) {
-		t.Errorf("상대 경로 err = %v, 기대 ErrInvalidProfileImage", err)
+	for _, bad := range []string{
+		"/pets/a.jpg",
+		"https://evil.example.com/a.jpg",
+		"/api/images/not-a-uuid",
+	} {
+		if _, err := svc.UpdateMe(ctx, user.ID, nil, &bad, true); !errors.Is(err, ErrInvalidProfileImage) {
+			t.Errorf("%q err = %v, 기대 ErrInvalidProfileImage", bad, err)
+		}
+	}
+
+	managed := imagePathPrefix + uuid.NewString()
+	got, err = svc.UpdateMe(ctx, user.ID, nil, &managed, true)
+	if err != nil {
+		t.Fatalf("업로드한 이미지 주소가 거부됨: %v", err)
+	}
+	if got.ProfileImage == nil || *got.ProfileImage != managed {
+		t.Errorf("profileImage = %v, 기대 %q", got.ProfileImage, managed)
+	}
+
+	if _, err := svc.UpdateMe(ctx, user.ID, nil, nil, true); err != nil {
+		t.Fatalf("사진 삭제: %v", err)
 	}
 }

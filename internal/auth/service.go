@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/daewon/tripaw-server/internal/oauth"
@@ -94,7 +93,7 @@ func (s *Service) Me(ctx context.Context, userID uuid.UUID) (*User, error) {
 }
 
 func (s *Service) UpdateMe(
-	ctx context.Context, userID uuid.UUID, nickname *string, image *string, imageSet bool,
+	ctx context.Context, userID uuid.UUID, nickname *string, img *string, imageSet bool,
 ) (*User, error) {
 	if nickname != nil {
 		trimmed := strings.TrimSpace(*nickname)
@@ -104,14 +103,17 @@ func (s *Service) UpdateMe(
 		nickname = &trimmed
 	}
 
-	if imageSet && image != nil && *image != "" {
-		u, err := url.Parse(*image)
-		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+	if imageSet && img != nil && *img != "" {
+		rest, ok := strings.CutPrefix(*img, imagePathPrefix)
+		if !ok {
+			return nil, ErrInvalidProfileImage
+		}
+		if _, err := uuid.Parse(rest); err != nil {
 			return nil, ErrInvalidProfileImage
 		}
 	}
 
-	return s.repo.UpdateProfile(ctx, userID, nickname, image, imageSet)
+	return s.repo.UpdateProfile(ctx, userID, nickname, img, imageSet)
 }
 
 func (s *Service) NextStep(ctx context.Context, userID uuid.UUID) (string, error) {

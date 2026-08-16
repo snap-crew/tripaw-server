@@ -3,10 +3,10 @@ package pet
 import (
 	"context"
 	"encoding/json"
-	"net/url"
 	"regexp"
 	"strings"
 
+	"github.com/daewon/tripaw-server/internal/image"
 	"github.com/google/uuid"
 )
 
@@ -273,9 +273,9 @@ func validatePhotoURL(raw *string) error {
 	if raw == nil || *raw == "" {
 		return nil
 	}
-	u, err := url.Parse(*raw)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return invalid("invalid_photo_url", "photoUrl 은 http(s) 절대 주소여야 합니다")
+	if !image.IsManagedURL(*raw) {
+		return invalid("invalid_photo_url",
+			"photoUrl 은 POST /api/images 가 돌려준 주소여야 합니다")
 	}
 	return nil
 }

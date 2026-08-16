@@ -47,9 +47,11 @@ Base URL: `https://api.trippaw.app` (prod) / `http://localhost:8080` (local)
 | POST | `/api/trips/{id}/days/{dayNo}/stops` | 5 | 일정 담기(복수·멱등) |
 | DELETE | `/api/trips/{id}/days/{dayNo}/stops/{seq}` | 5 | 일정 삭제 |
 | PATCH | `/api/trips/{id}/days/{dayNo}/reorder` | 5 | 일정 순서 변경 |
+| POST | `/api/images` | 44 | 이미지 업로드 |
+| GET | `/api/images/{id}` | 44 | 이미지 조회 |
 | GET | `/health` | — | 헬스체크(인증 없음) |
 
-**아직 없는 것** — 사진 업로드 presign(스토리지 미결정) · AI 개인화 추천 · 알림 · 예약 · 체크리스트.
+**아직 없는 것** — AI 개인화 추천 · AI 루트 생성 · 알림 · 예약 · 체크리스트.
 
 ## 목차
 
@@ -61,6 +63,7 @@ Base URL: `https://api.trippaw.app` (prod) / `http://localhost:8080` (local)
 - [Place API](#place-api)
 - [SavedPlace API](#savedplace-api)
 - [Trip API](#trip-api)
+- [Image API](#image-api)
 - [에러 코드 전체 목록](#에러-코드-전체-목록)
 
 ---
@@ -321,7 +324,7 @@ sequenceDiagram
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|:----:|------|
 | `nickname` | String? | | 1~20자. 앞뒤 공백은 제거하고 저장 |
-| `profileImage` | String? | | 절대 http(s) 주소. **`null`로 보내면 삭제** |
+| `profileImage` | String? | | `POST /api/images` 가 돌려준 `url`. **`null`로 보내면 삭제** |
 
 > **`profileImage`는 세 상태가 다르다.**
 >
@@ -481,7 +484,7 @@ sequenceDiagram
 | `gender` | `male` \| `female` | `invalid_gender` |
 | `neutered` | `done` \| `not_done` \| `unknown` | `invalid_neutered` |
 | `traits` | 0~3개. 중복 불가. `active`·`calm`·`social`·`timid`·`curious` | `invalid_traits` |
-| `photoUrl` | 선택. 절대 http(s) 주소 | `invalid_photo_url` |
+| `photoUrl` | 선택. `POST /api/images` 가 돌려준 `url` | `invalid_photo_url` |
 
 > 이름 규칙은 이모지·특수문자·줄바꿈을 막는다(`보리🐶`, `보리!` 모두 거부). 길이는 **글자 수**로 센다 — `보리`는 6바이트지만 2자다.
 >
@@ -1302,6 +1305,81 @@ flowchart TD
 
 ---
 
+## Image API
+
+| Method | Path | 인증 | 설명 |
+|--------|------|:----:|------|
+| POST | `/api/images` | ✅ | 업로드 |
+| GET | `/api/images/{id}` | ✅ | 조회 |
+
+반려동물 사진과 회원 프로필 사진을 올리고 받아오는 곳이다. 별도 스토리지를 두지 않고
+서버가 직접 보관한다.
+
+---
+
+### POST /api/images
+
+**요청 본문이 이미지 바이트 그 자체다.** JSON 도 multipart 도 아니다.
+
+```
+POST /api/images
+Authorization: Bearer <accessToken>
+Content-Type: image/jpeg
+
+<파일 바이트>
+```
+
+**Response `201`**
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "url": "/api/images/550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+돌려받은 `url` 을 그대로 `photoUrl`(반려동물) 또는 `profileImage`(회원)에 넣는다.
+
+> **`Content-Type` 헤더는 참고만 하고 서버가 바이트를 직접 판정한다.** 헤더에 `image/jpeg`
+> 라고 적어도 내용이 HTML 이면 거절한다. 응답으로 나갈 때도 서버가 판정한 종류를 쓴다.
+>
+> 허용: `image/jpeg` · `image/png` · `image/webp`. GIF·SVG 는 받지 않는다.
+> 최대 10MB.
+
+**Error Codes**
+
+| code | HTTP | 발생 조건 |
+|------|------|---------|
+| `invalid_request` | 400 | 본문이 비어 있음 |
+| `unsupported_image_type` | 415 | jpeg·png·webp 가 아님 |
+| `image_too_large` | 413 | 10MB 초과 |
+
+---
+
+### GET /api/images/{id}
+
+이미지 바이트를 그대로 돌려준다. **인증이 필요하다** — `<img src>` 로 바로 걸 수 없고
+토큰을 실어 받아온 뒤 표시해야 한다.
+
+```
+200 OK
+Content-Type: image/jpeg
+Cache-Control: private, max-age=31536000, immutable
+X-Content-Type-Options: nosniff
+
+<파일 바이트>
+```
+
+내용이 바뀌지 않으므로 오래 캐시해도 된다. 사진을 바꾸면 새 `id` 가 나온다.
+
+**Error Codes**
+
+| code | HTTP | 발생 조건 |
+|------|------|---------|
+| `not_found` | 404 | 없는 이미지(UUID 형식이 아닌 경우 포함) |
+
+---
+
 ## 에러 코드 전체 목록
 
 현재 코드에서 실제로 반환되는 코드 전부.
@@ -1330,11 +1408,13 @@ flowchart TD
 | `invalid_gender` | 422 | 성별이 `male`/`female`이 아님 |
 | `invalid_neutered` | 422 | 중성화가 `done`/`not_done`/`unknown`이 아님 |
 | `invalid_traits` | 422 | 성향 3개 초과·중복·허용값 외 |
-| `invalid_photo_url` | 422 | 사진 주소가 절대 http(s)가 아님 |
+| `invalid_photo_url` | 422 | 사진 주소가 `POST /api/images` 가 돌려준 형식이 아님 |
 | `invalid_nickname` | 422 | 회원 이름 1~20자 위반 |
 | `invalid_trip_title` | 422 | 여행 제목 1~20자 위반 |
 | `invalid_date_range` | 422 | 날짜 형식 오류 또는 종료일이 시작일보다 앞 |
 | `invalid_pets` | 422 | 동반 반려동물 ID 형식 오류·내 것이 아님 |
 | `invalid_place` | 422 | 일정에 담으려는 장소가 존재하지 않음 |
 | `invalid_reorder` | 422 | 순서 목록이 현재 일정과 다름 |
+| `unsupported_image_type` | 415 | 업로드가 jpeg·png·webp 가 아님 |
+| `image_too_large` | 413 | 업로드가 10MB 초과 |
 | `internal_error` | 500 | 그 외 서버 오류 |
