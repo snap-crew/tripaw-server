@@ -19,6 +19,7 @@ import (
 	"github.com/daewon/tripaw-server/internal/router"
 	"github.com/daewon/tripaw-server/internal/terms"
 	"github.com/daewon/tripaw-server/internal/token"
+	"github.com/daewon/tripaw-server/internal/trip"
 	"github.com/gin-gonic/gin"
 )
 
@@ -80,6 +81,7 @@ func run() error {
 		terms.NewHandler(terms.NewService(terms.NewRepository(pool))),
 		pet.NewHandler(pet.NewService(pet.NewRepository(pool))),
 		place.NewHandler(place.NewService(place.NewRepository(pool))),
+		trip.NewHandler(trip.NewService(trip.NewRepository(pool))),
 	)
 
 	srv := &http.Server{
