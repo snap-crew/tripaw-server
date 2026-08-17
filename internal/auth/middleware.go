@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -43,6 +44,17 @@ func UserID(c *gin.Context) (uuid.UUID, bool) {
 	}
 	id, ok := v.(uuid.UUID)
 	return id, ok
+}
+
+func RequireUserID(c *gin.Context) (uuid.UUID, bool) {
+	userID, ok := UserID(c)
+	if !ok {
+		slog.Error("인증이 필요한 라우트에 RequireAuth 미들웨어가 없습니다",
+			"path", c.FullPath())
+		httpx.Error(c, http.StatusInternalServerError, "internal_error", "서버 오류")
+		return uuid.Nil, false
+	}
+	return userID, true
 }
 
 func bearerToken(header string) (string, error) {

@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/daewon/tripaw-server/internal/httpx"
+	"github.com/daewon/tripaw-server/internal/token"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -43,12 +43,7 @@ func (h *Handler) loginApple(c *gin.Context) {
 		return
 	}
 
-	httpx.OK(c, http.StatusOK, TokenResponse{
-		AccessToken:  pair.AccessToken,
-		RefreshToken: pair.RefreshToken,
-		ExpiresIn:    pair.ExpiresIn,
-		User:         NewUserResponse(user),
-	})
+	h.writeLoginResponse(c, user, pair)
 }
 
 func (h *Handler) loginKakao(c *gin.Context) {
@@ -64,11 +59,23 @@ func (h *Handler) loginKakao(c *gin.Context) {
 		return
 	}
 
+	h.writeLoginResponse(c, user, pair)
+}
+
+func (h *Handler) writeLoginResponse(c *gin.Context, user *User, pair *token.Pair) {
+	nextStep, err := h.svc.NextStep(c.Request.Context(), user.ID)
+	if err != nil {
+		slog.Error("다음 단계 판정 실패", "userID", user.ID, "error", err)
+		httpx.Error(c, http.StatusInternalServerError, "internal_error", "서버 오류")
+		return
+	}
+
 	httpx.OK(c, http.StatusOK, TokenResponse{
 		AccessToken:  pair.AccessToken,
 		RefreshToken: pair.RefreshToken,
 		ExpiresIn:    pair.ExpiresIn,
 		User:         NewUserResponse(user),
+		NextStep:     nextStep,
 	})
 }
 
@@ -93,7 +100,7 @@ func (h *Handler) refresh(c *gin.Context) {
 }
 
 func (h *Handler) me(c *gin.Context) {
-	userID, ok := requireUserID(c)
+	userID, ok := RequireUserID(c)
 	if !ok {
 		return
 	}
@@ -108,7 +115,7 @@ func (h *Handler) me(c *gin.Context) {
 }
 
 func (h *Handler) logout(c *gin.Context) {
-	userID, ok := requireUserID(c)
+	userID, ok := RequireUserID(c)
 	if !ok {
 		return
 	}
@@ -122,7 +129,7 @@ func (h *Handler) logout(c *gin.Context) {
 }
 
 func (h *Handler) deleteAccount(c *gin.Context) {
-	userID, ok := requireUserID(c)
+	userID, ok := RequireUserID(c)
 	if !ok {
 		return
 	}
@@ -136,17 +143,6 @@ func (h *Handler) deleteAccount(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
-}
-
-func requireUserID(c *gin.Context) (uuid.UUID, bool) {
-	userID, ok := UserID(c)
-	if !ok {
-		slog.Error("인증이 필요한 라우트에 RequireAuth 미들웨어가 없습니다",
-			"path", c.FullPath())
-		httpx.Error(c, http.StatusInternalServerError, "internal_error", "서버 오류")
-		return uuid.Nil, false
-	}
-	return userID, true
 }
 
 func writeAuthError(c *gin.Context, err error) {
