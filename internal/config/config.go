@@ -14,7 +14,6 @@ type Config struct {
 	Port        string
 	DatabaseURL string
 
-	// 수집 파이프라인에서 쓰던 키들. 수집이 끝나 지금은 서버가 쓰지 않는다.
 	DataGoKrKey    string
 	KakaoRESTKey   string
 	AnthropicKey   string
@@ -27,34 +26,29 @@ type Config struct {
 
 type JWTConfig struct {
 	Secret string
-	// 액세스 토큰은 짧게, 리프레시 토큰은 길게. 액세스가 새어도 피해 시간이 짧도록.
+
 	AccessExpiry  time.Duration
 	RefreshExpiry time.Duration
 }
 
-// AppleConfig 는 애플 개발자 사이트에서 발급받는 값들이다.
 type AppleConfig struct {
-	// ClientID 는 iOS 앱의 번들 ID (예: com.tripaw.app).
 	ClientID string
-	// TeamID 는 Membership 의 10자리 팀 ID.
+
 	TeamID string
-	// KeyID 는 Sign in with Apple 용 키(.p8)의 10자리 ID.
+
 	KeyID string
-	// PrivateKey 는 .p8 파일 내용(PEM). 환경변수에 한 줄로 넣으면 \n 이스케이프도 처리한다.
+
 	PrivateKey string
-	// RedirectURI 는 앱 로그인에는 보통 필요 없다. 비워두면 전송하지 않는다.
+
 	RedirectURI string
 }
 
 type KakaoConfig struct {
-	// AppID 는 카카오 developers 의 "앱 ID"(숫자). 넘어온 액세스 토큰이 우리 앱
-	// 것인지 확인하는 데 쓴다. 0 이면 그 검사를 건너뛴다.
 	AppID int64
 }
 
-// Load 는 .env 를 읽어 설정을 만든다. 이미 프로세스 환경에 있는 값이 우선한다.
 func Load() (*Config, error) {
-	_ = godotenv.Load() // .env 가 없어도 환경변수만으로 동작 가능
+	_ = godotenv.Load()
 
 	accessExpiry, err := parseDuration("JWT_ACCESS_EXPIRY", "1h")
 	if err != nil {
@@ -101,7 +95,6 @@ func Load() (*Config, error) {
 	return c, nil
 }
 
-// RequireDataGoKr 는 공공데이터포털 키가 필요한 명령에서 호출한다.
 func (c *Config) RequireDataGoKr() error {
 	if c.DataGoKrKey == "" {
 		return fmt.Errorf("DATA_GO_KR_SERVICE_KEY 가 설정되지 않았습니다")
@@ -131,7 +124,6 @@ func (c *Config) RequireAuth() error {
 	return nil
 }
 
-// IsProduction 은 운영 환경인지 알려준다. 로그 레벨·에러 노출 범위를 가른다.
 func (c *Config) IsProduction() bool { return c.AppEnv == "production" }
 
 func getEnv(key, fallback string) string {

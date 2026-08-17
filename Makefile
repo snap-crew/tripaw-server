@@ -66,8 +66,12 @@ test-db:      ## 테스트용 DB 생성 + 마이그레이션 적용
 		docker compose exec -T db psql -U tripaw -d postgres -c "CREATE DATABASE tripaw_test;"
 	$(GOOSE) -dir migrations postgres "$(TEST_DATABASE_URL)" up
 
+# -p 1 은 패키지를 한 번에 하나씩 돌린다. 통합 테스트가 tripaw_test 하나를
+# 공유하면서 각자 TRUNCATE 로 초기화하는데, 패키지가 병렬로 돌면 서로의 데이터를
+# 지워서 FK 위반과 데드락이 난다. 패키지별 DB 를 만드는 방법도 있지만
+# 전체 12초짜리 스위트에 그만한 장치를 붙일 이유가 없다.
 test:         ## 전체 테스트 (TEST_DATABASE_URL 이 없으면 통합 테스트는 건너뜀)
-	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test ./...
+	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -p 1 ./...
 
 test-unit:    ## DB 없이 도는 테스트만
 	go test ./...

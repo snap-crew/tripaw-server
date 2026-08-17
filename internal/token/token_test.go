@@ -45,9 +45,6 @@ func TestGeneratePairRoundTrip(t *testing.T) {
 	}
 }
 
-// 이 테스트가 이 패키지의 존재 이유다.
-// 리프레시 토큰을 Authorization 헤더에 넣어도 통과하면 액세스 토큰의 짧은
-// 수명이 무의미해진다.
 func TestRefreshTokenIsRejectedAsAccessToken(t *testing.T) {
 	m := newTestManager()
 	pair, err := m.GeneratePair(uuid.New())
@@ -73,7 +70,6 @@ func TestAccessTokenIsRejectedAsRefreshToken(t *testing.T) {
 }
 
 func TestExpiredTokenIsRejected(t *testing.T) {
-	// leeway 30초를 넘겨야 하므로 넉넉히 과거로 만료시킨다.
 	m := NewManager(testSecret, -time.Hour, -time.Hour)
 	pair, err := m.GeneratePair(uuid.New())
 	if err != nil {
@@ -97,7 +93,6 @@ func TestWrongSecretIsRejected(t *testing.T) {
 	}
 }
 
-// alg 를 none 으로 바꿔치기한 토큰이 통과하면 안 된다.
 func TestNoneAlgorithmIsRejected(t *testing.T) {
 	c := claims{
 		Typ: typeAccess,
@@ -119,7 +114,6 @@ func TestNoneAlgorithmIsRejected(t *testing.T) {
 	}
 }
 
-// exp 가 없는 토큰은 영원히 유효하므로 거부해야 한다.
 func TestTokenWithoutExpiryIsRejected(t *testing.T) {
 	c := claims{
 		Typ: typeAccess,
@@ -139,8 +133,6 @@ func TestTokenWithoutExpiryIsRejected(t *testing.T) {
 	}
 }
 
-// 같은 사용자가 연달아 로그인해도 토큰이 겹치면 안 된다.
-// 겹치면 refresh_tokens.token_hash UNIQUE 에 걸려 두 번째 로그인이 실패한다.
 func TestTokensAreUniquePerCall(t *testing.T) {
 	m := newTestManager()
 	userID := uuid.New()

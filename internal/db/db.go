@@ -1,4 +1,3 @@
-// Package db 는 서버가 쓰는 Postgres 커넥션 풀을 만든다.
 package db
 
 import (
@@ -9,8 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Open 은 커넥션 풀을 만들고 실제로 연결되는지 확인한다.
-// 풀은 lazy 라서 Ping 을 하지 않으면 첫 요청에 가서야 연결 실패를 알게 된다.
 func Open(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
@@ -19,8 +16,7 @@ func Open(ctx context.Context, url string) (*pgxpool.Pool, error) {
 
 	cfg.MaxConns = 10
 	cfg.MinConns = 2
-	// 오래 붙잡고 있던 커넥션은 주기적으로 버린다. 프록시나 DB 재시작 뒤에
-	// 죽은 커넥션을 계속 쥐고 있는 상황을 피한다.
+
 	cfg.MaxConnLifetime = time.Hour
 	cfg.MaxConnIdleTime = 30 * time.Minute
 

@@ -8,14 +8,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Logger 는 요청 한 건을 slog 로 남긴다.
-// gin 기본 로거는 자체 포맷으로 stdout 에 쓰기 때문에, 나머지 로그와 형식을 맞춘다.
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
 
-		// 등록되지 않은 경로는 FullPath 가 비어 있다. 실제 경로를 남겨야 추적이 된다.
 		path := c.FullPath()
 		if path == "" {
 			path = c.Request.URL.Path
@@ -39,7 +36,6 @@ func Logger() gin.HandlerFunc {
 	}
 }
 
-// Recovery 는 핸들러에서 panic 이 나도 서버가 죽지 않게 막고 500 을 준다.
 func Recovery() gin.HandlerFunc {
 	return gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, recovered any) {
 		slog.Error("핸들러 panic", "path", c.Request.URL.Path, "panic", recovered)

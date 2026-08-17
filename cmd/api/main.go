@@ -1,8 +1,3 @@
-// API 서버.
-//
-//	go run ./cmd/api
-//
-// 필요한 설정은 .env 를 참고. 로그인 관련 값이 비어 있으면 기동 시점에 멈춘다.
 package main
 
 import (
@@ -39,8 +34,6 @@ func run() error {
 
 	setupLogger(cfg)
 
-	// 설정이 빠졌다면 지금 멈춘다. 그러지 않으면 사용자가 로그인을 시도하는
-	// 순간에야 실패해서, 배포 후 한참 뒤에 발견된다.
 	if err := cfg.RequireAuth(); err != nil {
 		return err
 	}
@@ -49,7 +42,6 @@ func run() error {
 			"운영 환경에서는 반드시 설정하세요")
 	}
 
-	// 종료 신호를 받으면 이 컨텍스트가 취소된다.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -67,7 +59,6 @@ func run() error {
 		return err
 	}
 
-	// 발급하는 쪽과 검증하는 쪽이 같은 설정을 써야 하므로 하나만 만들어 공유한다.
 	tokens := token.NewManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 
 	authService := auth.NewService(
@@ -86,7 +77,7 @@ func run() error {
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: handler,
-		// 느린 클라이언트가 커넥션을 붙잡고 있지 못하게 한다.
+
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -110,7 +101,6 @@ func run() error {
 		slog.Info("종료 신호를 받았습니다. 처리 중인 요청을 기다립니다")
 	}
 
-	// 진행 중인 요청이 끝날 시간을 준다.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
@@ -124,7 +114,6 @@ func run() error {
 func setupLogger(cfg *config.Config) {
 	var h slog.Handler
 	if cfg.IsProduction() {
-		// 운영은 로그 수집기가 파싱하기 쉬운 JSON.
 		h = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
 	} else {
 		h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
@@ -132,8 +121,6 @@ func setupLogger(cfg *config.Config) {
 	slog.SetDefault(slog.New(h))
 }
 
-// cleanupExpiredTokens 는 만료된 리프레시 토큰을 주기적으로 지운다.
-// 쓰이지 않는 행이라 남겨둬도 동작에는 문제가 없지만 계속 쌓이기만 한다.
 func cleanupExpiredTokens(ctx context.Context, svc *auth.Service) {
 	ticker := time.NewTicker(6 * time.Hour)
 	defer ticker.Stop()
