@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -436,5 +437,78 @@ func TestResolveNextStepReturnsToTermsAfterRevision(t *testing.T) {
 	}
 	if step != "terms" {
 		t.Fatalf("개정 후 nextStep = %q, 기대 %q — 개정판 미동의인데 통과했다", step, "terms")
+	}
+}
+
+func TestUpdateProfileOnlyChangesSentFields(t *testing.T) {
+	repo, _ := testRepo(t)
+	ctx := context.Background()
+
+	user, err := repo.UpsertOnLogin(ctx, &User{
+		Provider:     ProviderKakao,
+		ProviderSub:  "update-me",
+		Nickname:     strptr("원래이름"),
+		ProfileImage: strptr("https://cdn.test/a.jpg"),
+	})
+	if err != nil {
+		t.Fatalf("사용자 생성: %v", err)
+	}
+
+	got, err := repo.UpdateProfile(ctx, user.ID, strptr("새이름"), nil, false)
+	if err != nil {
+		t.Fatalf("닉네임 수정: %v", err)
+	}
+	if *got.Nickname != "새이름" {
+		t.Errorf("닉네임 = %q", *got.Nickname)
+	}
+	if got.ProfileImage == nil || *got.ProfileImage != "https://cdn.test/a.jpg" {
+		t.Errorf("사진이 바뀜: %v — imageSet=false 면 건드리면 안 된다", got.ProfileImage)
+	}
+
+	got, err = repo.UpdateProfile(ctx, user.ID, nil, nil, true)
+	if err != nil {
+		t.Fatalf("사진 삭제: %v", err)
+	}
+	if got.ProfileImage != nil {
+		t.Errorf("사진 = %v, 기대 nil", *got.ProfileImage)
+	}
+	if *got.Nickname != "새이름" {
+		t.Errorf("닉네임이 바뀜: %q", *got.Nickname)
+	}
+}
+
+func TestUpdateMeValidatesNickname(t *testing.T) {
+	repo, _ := testRepo(t)
+	ctx := context.Background()
+	svc := &Service{repo: repo}
+
+	user, err := repo.UpsertOnLogin(ctx, &User{
+		Provider: ProviderKakao, ProviderSub: "nickname-check", Nickname: strptr("원래"),
+	})
+	if err != nil {
+		t.Fatalf("사용자 생성: %v", err)
+	}
+
+	if _, err := svc.UpdateMe(ctx, user.ID, strptr("   "), nil, false); !errors.Is(err, ErrInvalidNickname) {
+		t.Errorf("공백 닉네임 err = %v, 기대 ErrInvalidNickname", err)
+	}
+
+	long := strings.Repeat("가", 21)
+	if _, err := svc.UpdateMe(ctx, user.ID, &long, nil, false); !errors.Is(err, ErrInvalidNickname) {
+		t.Errorf("21자 err = %v, 기대 ErrInvalidNickname", err)
+	}
+
+	ok := "  " + strings.Repeat("가", 20) + "  "
+	got, err := svc.UpdateMe(ctx, user.ID, &ok, nil, false)
+	if err != nil {
+		t.Fatalf("20자 닉네임: %v", err)
+	}
+	if len([]rune(*got.Nickname)) != 20 {
+		t.Errorf("저장된 닉네임 %d자, 기대 20자 — 공백이 안 떼졌다", len([]rune(*got.Nickname)))
+	}
+
+	rel := "/pets/a.jpg"
+	if _, err := svc.UpdateMe(ctx, user.ID, nil, &rel, true); !errors.Is(err, ErrInvalidProfileImage) {
+		t.Errorf("상대 경로 err = %v, 기대 ErrInvalidProfileImage", err)
 	}
 }

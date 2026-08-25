@@ -26,6 +26,7 @@ func (h *Handler) RegisterPublic(rg *gin.RouterGroup) {
 
 func (h *Handler) RegisterProtected(rg *gin.RouterGroup) {
 	rg.GET("/auth/me", h.me)
+	rg.PATCH("/users/me", h.updateMe)
 	rg.POST("/auth/logout", h.logout)
 	rg.DELETE("/auth/account", h.deleteAccount)
 }
@@ -114,6 +115,34 @@ func (h *Handler) me(c *gin.Context) {
 	httpx.OK(c, http.StatusOK, NewUserResponse(user))
 }
 
+func (h *Handler) updateMe(c *gin.Context) {
+	userID, ok := RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	var req UpdateMeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Error(c, http.StatusBadRequest, "invalid_request", "요청 본문을 읽을 수 없습니다")
+		return
+	}
+
+	image, imageSet, err := req.profileImage()
+	if err != nil {
+		httpx.Error(c, http.StatusUnprocessableEntity, "invalid_photo_url",
+			"프로필 이미지 주소가 올바르지 않습니다")
+		return
+	}
+
+	user, err := h.svc.UpdateMe(c.Request.Context(), userID, req.Nickname, image, imageSet)
+	if err != nil {
+		writeAuthError(c, err)
+		return
+	}
+
+	httpx.OK(c, http.StatusOK, NewUserResponse(user))
+}
+
 func (h *Handler) logout(c *gin.Context) {
 	userID, ok := RequireUserID(c)
 	if !ok {
@@ -160,6 +189,14 @@ func writeAuthError(c *gin.Context, err error) {
 	case errors.Is(err, ErrAppleCodeRequired):
 		httpx.Error(c, http.StatusBadRequest, "apple_code_required",
 			"애플 계정 탈퇴에는 authorization code 가 필요합니다")
+
+	case errors.Is(err, ErrInvalidNickname):
+		httpx.Error(c, http.StatusUnprocessableEntity, "invalid_nickname",
+			"이름은 1자 이상 20자 이하여야 합니다")
+
+	case errors.Is(err, ErrInvalidProfileImage):
+		httpx.Error(c, http.StatusUnprocessableEntity, "invalid_photo_url",
+			"프로필 이미지 주소가 올바르지 않습니다")
 
 	case errors.Is(err, ErrUserNotFound):
 		httpx.Error(c, http.StatusNotFound, "user_not_found", "사용자를 찾을 수 없습니다")
