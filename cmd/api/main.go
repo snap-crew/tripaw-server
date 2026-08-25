@@ -13,6 +13,7 @@ import (
 	"github.com/daewon/tripaw-server/internal/auth"
 	"github.com/daewon/tripaw-server/internal/config"
 	"github.com/daewon/tripaw-server/internal/db"
+	"github.com/daewon/tripaw-server/internal/image"
 	"github.com/daewon/tripaw-server/internal/oauth"
 	"github.com/daewon/tripaw-server/internal/pet"
 	"github.com/daewon/tripaw-server/internal/place"
@@ -79,6 +80,7 @@ func run() error {
 	handler := router.New(tokens,
 		auth.NewHandler(authService),
 		terms.NewHandler(terms.NewService(terms.NewRepository(pool))),
+		image.NewHandler(image.NewService(image.NewRepository(pool))),
 		pet.NewHandler(pet.NewService(pet.NewRepository(pool))),
 		place.NewHandler(place.NewService(place.NewRepository(pool))),
 		trip.NewHandler(trip.NewService(trip.NewRepository(pool))),

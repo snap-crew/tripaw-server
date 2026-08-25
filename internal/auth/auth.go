@@ -9,6 +9,8 @@ import (
 
 type Provider string
 
+const imagePathPrefix = "/api/images/"
+
 const (
 	ProviderApple Provider = "apple"
 	ProviderKakao Provider = "kakao"
