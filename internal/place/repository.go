@@ -27,10 +27,12 @@ const placeColumns = `v.id, v.name, v.category, v.road_address, v.tel, v.lat, v.
 	v.leash_required, v.muzzle_required, v.muzzle_dangerous_only,
 	v.crate_required, v.waste_bag_required,
 	v.extra_fee_krw, v.parking_available, v.needs_verification, v.open_time,
+	pl.homepage_url,
 	(s.user_id IS NOT NULL) AS is_saved`
 
 const placeFrom = `
 	FROM place_view v
+	JOIN places pl ON pl.id = v.id
 	LEFT JOIN saved_places s ON s.place_id = v.id AND s.user_id = $1`
 
 func whereFilters(f *Filter, args *[]any) string {
@@ -369,6 +371,7 @@ func placeScanDest(p *Place) []any {
 		&p.LeashRequired, &p.MuzzleRequired, &p.MuzzleDangerousOnly,
 		&p.CrateRequired, &p.WasteBagRequired,
 		&p.ExtraFeeKrw, &p.ParkingAvailable, &p.NeedsVerification, &p.OpenTime,
+		&p.HomepageURL,
 		&p.IsSaved,
 	}
 }

@@ -1,7 +1,9 @@
 package place
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +27,7 @@ type seedPlace struct {
 	extraFee     *int
 	parking      *bool
 	image        bool
+	homepage     string
 }
 
 func f64(v float64) *float64 { return &v }
@@ -91,11 +94,13 @@ func seed(t *testing.T, pool *pgxpool.Pool, i int, s seedPlace) {
 
 	var placeID int64
 	err = pool.QueryRow(ctx, `
-		INSERT INTO places (name, norm_name, category, geom, road_address, parking_available)
+		INSERT INTO places (name, norm_name, category, geom, road_address, parking_available,
+			homepage_url)
 		VALUES ($1, $1, $2::place_category,
-		        ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography, $5, $6)
+		        ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography, $5, $6, NULLIF($7,''))
 		RETURNING id`,
-		s.name, s.category, s.lng, s.lat, "제주시 테스트로 "+s.name, s.parking).Scan(&placeID)
+		s.name, s.category, s.lng, s.lat, "제주시 테스트로 "+s.name, s.parking,
+		s.homepage).Scan(&placeID)
 	if err != nil {
 		t.Fatalf("places: %v", err)
 	}
@@ -667,5 +672,34 @@ func TestRecommendedExcludesShop(t *testing.T) {
 	}
 	if !contains(got, "오름") {
 		t.Errorf("관광지가 추천에서 빠졌다 (%v)", got)
+	}
+}
+
+func TestHomepageIsReturnedOnlyWhenPresent(t *testing.T) {
+	withSNS := jeju("인스타있는곳", "cafe", 33.50, 126.50)
+	withSNS.homepage = "https://www.instagram.com/tripaw_test"
+	withoutSNS := jeju("없는곳", "cafe", 33.51, 126.51)
+
+	svc, _, userID := testSvc(t, withSNS, withoutSNS)
+
+	byName := map[string]*string{}
+	items, _, _, err := svc.List(context.Background(), userID, &Filter{}, "", nil, nil, "", 10)
+	if err != nil {
+		t.Fatalf("목록: %v", err)
+	}
+	for i := range items {
+		byName[items[i].Name] = items[i].HomepageURL
+	}
+
+	if got := byName["인스타있는곳"]; got == nil || *got != withSNS.homepage {
+		t.Errorf("홈페이지 = %v, want %q", got, withSNS.homepage)
+	}
+	if got := byName["없는곳"]; got != nil {
+		t.Errorf("값이 없는데 %q 가 나왔다", *got)
+	}
+
+	res := newPlaceResponse(&Place{ID: 1, Name: "없는곳"})
+	if b, _ := json.Marshal(res); bytes.Contains(b, []byte("homepageUrl")) {
+		t.Errorf("값이 없으면 응답에서 키가 빠져야 한다: %s", b)
 	}
 }

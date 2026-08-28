@@ -53,7 +53,8 @@ type Place struct {
 	ParkingAvailable    *bool
 	NeedsVerification   bool
 
-	OpenTime *string
+	OpenTime    *string
+	HomepageURL *string
 
 	IsSaved  bool
 	Distance *float64

@@ -858,6 +858,7 @@ sequenceDiagram
   "category": "attraction",
   "roadAddress": "서귀포시 성산읍 고성리",
   "tel": "064-796-2404",
+  "homepageUrl": "https://www.instagram.com/example_jeju",
   "lat": 33.3939,
   "lng": 126.2396,
   "imageUrl": "https://cdn.trippaw.app/places/1024-main.jpg",
@@ -893,6 +894,7 @@ sequenceDiagram
 | `category` | String | 카테고리 |
 | `roadAddress` | String? | 도로명 주소 |
 | `tel` | String? | 전화번호. 없으면 필드 자체가 빠진다 |
+| `homepageUrl` | String? | 홈페이지·SNS 주소. 없으면 필드 자체가 빠진다 |
 | `lat`,`lng` | Number | 좌표 |
 | `imageUrl` | String? | 대표 사진 1장. **`null`이면 클라이언트가 Placeholder를 쓴다**(서버는 기본 이미지를 채우지 않는다) |
 | `imageCount` | Int | 전체 사진 장수. "사진 N장" 표시에 쓴다 |
@@ -909,6 +911,10 @@ sequenceDiagram
 > **`petConditions`는 값이 있는 항목만 담는다.** 원본 공백률이 높아 "정보 없음"을 일일이 넣으면 카드가 그 문구로 뒤덮인다. 배열이 짧다고 조건이 없는 게 아니라 **알려지지 않은 것**이다.
 >
 > **`isSaved` 덕분에 별도의 저장 상태 동기화 API가 필요 없다.** 탐색·상세·저장 목록이 모두 이 필드를 들고 온다.
+>
+> **`homepageUrl` 은 공식 홈페이지가 아닐 수 있다.** 원본이 홈페이지 칸에 인스타그램 주소를 넣어둔
+> 곳이 많아, 실제로 절반 가까이가 SNS 주소다. 버튼 라벨을 "홈페이지"로 고정하지 말 것.
+> 매장(`shop`)은 개별 지점이 아니라 브랜드 대표 사이트가 들어간다.
 
 ---
 
