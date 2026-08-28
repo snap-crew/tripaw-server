@@ -44,6 +44,7 @@ Base URL: `https://api.trippaw.app` (prod) / `http://localhost:8080` (local)
 | PATCH | `/api/trips/{id}` | 5 | 여행 정보 수정 |
 | DELETE | `/api/trips/{id}` | 5 | 여행 삭제 |
 | POST | `/api/trips/{id}/duplicate` | 5 | 여행 복제(전체) |
+| POST | `/api/trips/{id}/generate` | 45 | AI 루트로 채우기 |
 | POST | `/api/trips/{id}/days/{dayNo}/stops` | 5 | 일정 담기(복수·멱등) |
 | DELETE | `/api/trips/{id}/days/{dayNo}/stops/{seq}` | 5 | 일정 삭제 |
 | PATCH | `/api/trips/{id}/days/{dayNo}/reorder` | 5 | 일정 순서 변경 |
@@ -51,7 +52,7 @@ Base URL: `https://api.trippaw.app` (prod) / `http://localhost:8080` (local)
 | GET | `/api/images/{id}` | 44 | 이미지 조회 |
 | GET | `/health` | — | 헬스체크(인증 없음) |
 
-**아직 없는 것** — AI 개인화 추천 · AI 루트 생성 · 알림 · 예약 · 체크리스트.
+**아직 없는 것** — AI 개인화 추천 · 알림 · 예약 · 체크리스트.
 
 ## 목차
 
@@ -1006,6 +1007,7 @@ sequenceDiagram
 | PATCH | `/api/trips/{id}` | ✅ | 수정 |
 | DELETE | `/api/trips/{id}` | ✅ | 삭제 |
 | POST | `/api/trips/{id}/duplicate` | ✅ | 복제(전체) |
+| POST | `/api/trips/{id}/generate` | ✅ | AI 루트로 채우기 |
 | POST | `/api/trips/{id}/days/{dayNo}/stops` | ✅ | 일정 담기 |
 | DELETE | `/api/trips/{id}/days/{dayNo}/stops/{seq}` | ✅ | 일정 삭제 |
 | PATCH | `/api/trips/{id}/days/{dayNo}/reorder` | ✅ | 순서 변경 |
@@ -1198,6 +1200,43 @@ sequenceDiagram
 - 제목은 원본 뒤에 `" (복제)"`가 붙는다.
 - **20자를 넘으면 잘린다.** 원본이 18자면 `" (복제)"`를 붙여 23자가 되는데, 자르지 않으면 복제가 통째로 실패하기 때문이다.
 - 원본은 그대로 남는다.
+
+---
+
+### POST /api/trips/{id}/generate
+
+빈 여행을 일정으로 채운다. 여행 상세 Empty 화면의 `[✨ AI 루트로 채우기]`.
+
+**새 여행을 만들지 않는다.** 제목·기간·동반 반려동물이 이미 정해진 여행에 일정만 넣는다.
+그래서 **요청 본문이 없다** — 필요한 입력이 전부 여행에 저장돼 있다.
+
+| 입력 | 출처 |
+|------|------|
+| 일차 수 | `startDate` ~ `endDate` |
+| 동반 반려동물(크기·성향) | 여행에 연결된 반려동물 |
+| 테마 | 여행의 `themes` |
+
+**Request** — 본문 없음
+
+**Response `200`** — 채워진 [TripResponse](#tripresponse-공통)
+
+- **하루 4곳**씩, 1일차부터 마지막 일차까지 채운다. 후보가 모자라면 뒤쪽 일차가 덜 찬다.
+- 여행 전체에서 같은 장소가 두 번 담기지 않는다.
+- 숙소(`stay`)와 매장(`shop`)은 넣지 않는다. 숙소는 예약으로 넣는 값이고,
+  매장은 수집 데이터의 절반을 차지해 추천에서 제외하고 있다.
+- 응답 형태는 `GET /api/trips/{id}`와 같다. 이어서 순서 변경·삭제·추가를 그대로 쓸 수 있다.
+
+**동기 호출이다.** 응답까지 최대 20초 정도 걸린다. 화면에 로딩 상태를 두어야 한다.
+20초 안에 생성이 끝나지 않으면 서버가 자체 랭킹으로 코스를 짜서 **그래도 채워진 여행을
+돌려준다.** 빈 화면이 나가지 않는다.
+
+**에러**
+
+| 코드 | 상태 | 언제 |
+|------|:----:|------|
+| `trip_not_empty` | 409 | 이미 일정이 있는 여행. 비운 뒤 다시 호출한다 |
+| `no_candidates` | 422 | 조건에 맞는 후보 장소가 하나도 없다 |
+| `invalid_date_range` | 422 | 여행에 기간이 없다 |
 
 ---
 
@@ -1400,6 +1439,7 @@ X-Content-Type-Options: nosniff
 | `day_out_of_range` | 404 | 여행 기간에 없는 일차 |
 | `pet_limit_exceeded` | 409 | 반려동물 5마리 초과 등록 시도 |
 | `stops_outside_range` | 409 | 여행 기간 축소 시 사라지는 날에 일정이 남아 있음 |
+| `trip_not_empty` | 409 | 이미 일정이 있는 여행에 AI 루트 채우기를 호출 |
 | `required_terms_not_agreed` | 422 | 필수 약관 미동의 |
 | `invalid_pet_name` | 422 | 이름 1~12자·허용 문자 위반 |
 | `invalid_species` | 422 | 종이 `dog`/`cat`이 아님 |
@@ -1411,7 +1451,8 @@ X-Content-Type-Options: nosniff
 | `invalid_photo_url` | 422 | 사진 주소가 `POST /api/images` 가 돌려준 형식이 아님 |
 | `invalid_nickname` | 422 | 회원 이름 1~20자 위반 |
 | `invalid_trip_title` | 422 | 여행 제목 1~20자 위반 |
-| `invalid_date_range` | 422 | 날짜 형식 오류 또는 종료일이 시작일보다 앞 |
+| `invalid_date_range` | 422 | 날짜 형식 오류 또는 종료일이 시작일보다 앞, 기간 없는 여행에 AI 루트 채우기 호출 |
+| `no_candidates` | 422 | AI 루트 채우기에 쓸 후보 장소가 없음 |
 | `invalid_pets` | 422 | 동반 반려동물 ID 형식 오류·내 것이 아님 |
 | `invalid_place` | 422 | 일정에 담으려는 장소가 존재하지 않음 |
 | `invalid_reorder` | 422 | 순서 목록이 현재 일정과 다름 |

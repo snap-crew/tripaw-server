@@ -48,7 +48,7 @@ func testSvc(t *testing.T) (*Service, *pgxpool.Pool, uuid.UUID) {
 		t.Fatalf("테스트 사용자 생성: %v", err)
 	}
 
-	svc := NewService(NewRepository(pool))
+	svc := NewService(NewRepository(pool), nil)
 	svc.now = func() time.Time { return fixedToday }
 	return svc, pool, userID
 }

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/daewon/tripaw-server/internal/ai"
 	"github.com/daewon/tripaw-server/internal/auth"
 	"github.com/daewon/tripaw-server/internal/config"
 	"github.com/daewon/tripaw-server/internal/db"
@@ -45,6 +46,9 @@ func run() error {
 	if cfg.Kakao.AppID == 0 {
 		slog.Warn("KAKAO_APP_ID 가 비어 있어 카카오 토큰의 출처를 확인하지 않습니다. " +
 			"운영 환경에서는 반드시 설정하세요")
+	}
+	if cfg.GeminiKey == "" {
+		slog.Warn("GEMINI_API_KEY 가 비어 있어 AI 루트 채우기가 랭킹 순서로만 동작합니다")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -83,7 +87,8 @@ func run() error {
 		image.NewHandler(image.NewService(image.NewRepository(pool))),
 		pet.NewHandler(pet.NewService(pet.NewRepository(pool))),
 		place.NewHandler(place.NewService(place.NewRepository(pool))),
-		trip.NewHandler(trip.NewService(trip.NewRepository(pool))),
+		trip.NewHandler(trip.NewService(
+			trip.NewRepository(pool), ai.New(cfg.GeminiKey, cfg.GeminiModel))),
 	)
 
 	srv := &http.Server{
