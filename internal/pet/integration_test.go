@@ -66,6 +66,8 @@ func validPet(t *testing.T, pool *pgxpool.Pool, name string) *CreateRequest {
 	}
 }
 
+func f64(v float64) *float64 { return &v }
+
 func codeOf(err error) string {
 	var ve *ValidationError
 	if errors.As(err, &ve) {
@@ -516,5 +518,85 @@ func TestUpdatePhotoURLThreeStates(t *testing.T) {
 	}
 	if got.PhotoURL != nil {
 		t.Errorf("삭제: photoUrl = %v, 기대 nil", *got.PhotoURL)
+	}
+}
+
+func TestCreateStoresWeight(t *testing.T) {
+	svc, pool, userID := testSvc(t)
+
+	req := validPet(t, pool, "보리")
+	req.WeightKg = f64(12.5)
+
+	p, err := svc.Create(context.Background(), userID, req)
+	if err != nil {
+		t.Fatalf("등록: %v", err)
+	}
+	if p.WeightKg == nil || *p.WeightKg != 12.5 {
+		t.Fatalf("weightKg = %v, want 12.5", p.WeightKg)
+	}
+
+	// 몸무게는 선택값이다. 안 보내도 등록된다.
+	req2 := validPet(t, pool, "초코")
+	p2, err := svc.Create(context.Background(), userID, req2)
+	if err != nil {
+		t.Fatalf("몸무게 없이 등록: %v", err)
+	}
+	if p2.WeightKg != nil {
+		t.Errorf("weightKg = %v, 안 보냈으면 비어 있어야 한다", *p2.WeightKg)
+	}
+}
+
+func TestCreateRejectsWeightOutOfRange(t *testing.T) {
+	svc, pool, userID := testSvc(t)
+
+	for name, w := range map[string]float64{
+		"0kg":      0,
+		"음수":       -1,
+		"150kg 초과": 150.1,
+		"오타(1200)": 1200,
+	} {
+		req := validPet(t, pool, "보리")
+		req.WeightKg = f64(w)
+
+		_, err := svc.Create(context.Background(), userID, req)
+		if codeOf(err) != "invalid_weight" {
+			t.Errorf("%s: code = %q, want invalid_weight", name, codeOf(err))
+		}
+	}
+}
+
+func TestUpdateWeightAloneIsValidated(t *testing.T) {
+	svc, pool, userID := testSvc(t)
+
+	p, err := svc.Create(context.Background(), userID, validPet(t, pool, "보리"))
+	if err != nil {
+		t.Fatalf("등록: %v", err)
+	}
+
+	// 크기를 함께 보내지 않아도 몸무게 검증이 걸려야 한다.
+	_, err = svc.Update(context.Background(), userID, p.ID, &UpdateRequest{WeightKg: f64(900)})
+	if codeOf(err) != "invalid_weight" {
+		t.Fatalf("code = %q, want invalid_weight", codeOf(err))
+	}
+
+	updated, err := svc.Update(context.Background(), userID, p.ID, &UpdateRequest{WeightKg: f64(8.2)})
+	if err != nil {
+		t.Fatalf("수정: %v", err)
+	}
+	if updated.WeightKg == nil || *updated.WeightKg != 8.2 {
+		t.Fatalf("weightKg = %v, want 8.2", updated.WeightKg)
+	}
+	if updated.Size != "medium" {
+		t.Errorf("size = %q, 몸무게만 보냈으므로 그대로여야 한다", updated.Size)
+	}
+}
+
+func TestSaveDraftAcceptsWeight(t *testing.T) {
+	svc, _, userID := testSvc(t)
+
+	err := svc.SaveDraft(context.Background(), userID, 2,
+		map[string]any{"name": "보리", "weightKg": 12.5})
+	if err != nil {
+		t.Fatalf("몸무게가 담긴 임시 저장이 거절됐다: %v", err)
 	}
 }
