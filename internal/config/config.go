@@ -14,10 +14,10 @@ type Config struct {
 	Port        string
 	DatabaseURL string
 
-	DataGoKrKey    string
-	KakaoRESTKey   string
-	AnthropicKey   string
-	AnthropicModel string
+	DataGoKrKey  string
+	KakaoRESTKey string
+	GeminiKey    string
+	GeminiModel  string
 
 	JWT   JWTConfig
 	Apple AppleConfig
@@ -69,10 +69,10 @@ func Load() (*Config, error) {
 		Port:        getEnv("PORT", "8080"),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 
-		DataGoKrKey:    os.Getenv("DATA_GO_KR_SERVICE_KEY"),
-		KakaoRESTKey:   os.Getenv("KAKAO_REST_API_KEY"),
-		AnthropicKey:   os.Getenv("ANTHROPIC_API_KEY"),
-		AnthropicModel: getEnv("ANTHROPIC_MODEL", "claude-opus-5"),
+		DataGoKrKey:  os.Getenv("DATA_GO_KR_SERVICE_KEY"),
+		KakaoRESTKey: os.Getenv("KAKAO_REST_API_KEY"),
+		GeminiKey:    os.Getenv("GEMINI_API_KEY"),
+		GeminiModel:  getEnv("GEMINI_MODEL", "gemini-3.1-flash-lite"),
 
 		JWT: JWTConfig{
 			Secret:        os.Getenv("JWT_SECRET"),

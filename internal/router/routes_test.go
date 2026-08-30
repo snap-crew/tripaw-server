@@ -18,7 +18,7 @@ func TestRoutesRegisterWithoutConflict(t *testing.T) {
 		terms.NewHandler(terms.NewService(terms.NewRepository(nil))),
 		pet.NewHandler(pet.NewService(pet.NewRepository(nil))),
 		place.NewHandler(place.NewService(place.NewRepository(nil))),
-		trip.NewHandler(trip.NewService(trip.NewRepository(nil))),
+		trip.NewHandler(trip.NewService(trip.NewRepository(nil), nil)),
 	)
 
 	for _, ri := range r.Routes() {

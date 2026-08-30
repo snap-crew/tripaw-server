@@ -29,6 +29,7 @@ func (h *Handler) RegisterProtected(rg *gin.RouterGroup) {
 	rg.PATCH("/trips/:id", h.update)
 	rg.DELETE("/trips/:id", h.remove)
 	rg.POST("/trips/:id/duplicate", h.duplicate)
+	rg.POST("/trips/:id/generate", h.generate)
 
 	rg.POST("/trips/:id/days/:dayNo/stops", h.addStops)
 	rg.DELETE("/trips/:id/days/:dayNo/stops/:seq", h.deleteStop)
@@ -137,6 +138,21 @@ func (h *Handler) duplicate(c *gin.Context) {
 	}
 
 	httpx.OK(c, http.StatusCreated, newTripResponse(t, h.svc.today()))
+}
+
+func (h *Handler) generate(c *gin.Context) {
+	userID, tripID, ok := h.userAndTripID(c)
+	if !ok {
+		return
+	}
+
+	t, err := h.svc.Generate(c.Request.Context(), userID, tripID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+
+	httpx.OK(c, http.StatusOK, newTripResponse(t, h.svc.today()))
 }
 
 func (h *Handler) addStops(c *gin.Context) {
@@ -257,6 +273,14 @@ func writeError(c *gin.Context, err error) {
 	case errors.Is(err, ErrStopsOutsideRange):
 		httpx.Error(c, http.StatusConflict, "stops_outside_range",
 			"줄이려는 기간에 일정이 남아 있습니다. 해당 일정을 먼저 삭제해 주세요")
+
+	case errors.Is(err, ErrTripNotEmpty):
+		httpx.Error(c, http.StatusConflict, "trip_not_empty",
+			"이미 일정이 있는 여행입니다. 일정을 비운 뒤 다시 시도해 주세요")
+
+	case errors.Is(err, ErrNoCandidates):
+		httpx.Error(c, http.StatusUnprocessableEntity, "no_candidates",
+			"추천할 장소가 없습니다")
 
 	case errors.Is(err, ErrDayOutOfRange):
 		httpx.Error(c, http.StatusNotFound, "day_out_of_range", "여행 기간에 없는 일차입니다")

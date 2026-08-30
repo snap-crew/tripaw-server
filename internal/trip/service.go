@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/daewon/tripaw-server/internal/ai"
 	"github.com/google/uuid"
 )
 
@@ -16,12 +17,17 @@ const (
 
 type Service struct {
 	repo *Repository
+	ai   *ai.Client
 
 	now func() time.Time
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo, now: func() time.Time { return time.Now().UTC() }}
+func NewService(repo *Repository, client *ai.Client) *Service {
+	return &Service{
+		repo: repo,
+		ai:   client,
+		now:  func() time.Time { return time.Now().UTC() },
+	}
 }
 
 func (s *Service) today() time.Time {

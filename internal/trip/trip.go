@@ -12,8 +12,18 @@ const MaxTitleLen = 20
 const DuplicateSuffix = " (복제)"
 
 type Pet struct {
-	ID   uuid.UUID
-	Name string
+	ID     uuid.UUID
+	Name   string
+	Size   string
+	Traits []string
+}
+
+type Candidate struct {
+	ID          int64
+	Name        string
+	Category    string
+	RoadAddress *string
+	Lat, Lng    float64
 }
 
 type Stop struct {
@@ -58,6 +68,9 @@ var (
 	ErrStopsOutsideRange = errors.New("줄어드는 기간에 일정이 남아 있습니다")
 
 	ErrDayOutOfRange = errors.New("여행 기간에 없는 일차입니다")
+
+	ErrTripNotEmpty = errors.New("이미 일정이 있는 여행입니다")
+	ErrNoCandidates = errors.New("추천할 장소가 없습니다")
 )
 
 type ValidationError struct {

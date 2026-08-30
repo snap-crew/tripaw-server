@@ -103,7 +103,7 @@ func (r *Repository) LoadPets(ctx context.Context, trips []*Trip) error {
 	}
 
 	rows, err := r.pool.Query(ctx, `
-		SELECT rp.route_id, p.id, p.name
+		SELECT rp.route_id, p.id, p.name, p.size::text, p.traits::text[]
 		FROM route_pets rp JOIN pet_profiles p ON p.id = rp.pet_profile_id
 		WHERE rp.route_id = ANY($1)
 		ORDER BY p.created_at`, ids)
@@ -115,7 +115,7 @@ func (r *Repository) LoadPets(ctx context.Context, trips []*Trip) error {
 	for rows.Next() {
 		var routeID uuid.UUID
 		var p Pet
-		if err := rows.Scan(&routeID, &p.ID, &p.Name); err != nil {
+		if err := rows.Scan(&routeID, &p.ID, &p.Name, &p.Size, &p.Traits); err != nil {
 			return fmt.Errorf("반려동물 스캔: %w", err)
 		}
 		if t := byID[routeID]; t != nil {
@@ -374,6 +374,82 @@ func (r *Repository) ReorderDay(
 		FROM unnest($3::bigint[]) WITH ORDINALITY AS p(place_id, ord)`,
 		tripID, dayNo, placeIDs); err != nil {
 		return fmt.Errorf("일정 재삽입: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("트랜잭션 커밋: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) Candidates(ctx context.Context, size string, limit int) ([]Candidate, error) {
+	rows, err := r.pool.Query(ctx, `
+		WITH ranked AS (
+			SELECT v.id, v.name, v.category::text AS category, v.road_address,
+			       v.lat, v.lng,
+			       row_number() OVER (
+			           PARTITION BY v.category
+			           ORDER BY (v.image_url IS NOT NULL) DESC,
+			                    v.needs_verification,
+			                    v.confidence DESC NULLS LAST,
+			                    v.id
+			       ) AS rn
+			FROM place_view v
+			WHERE v.status IN ('allowed', 'partial')
+			  AND v.category NOT IN ('shop', 'stay')
+			  AND v.size_limit >= $1::size_limit
+		)
+		SELECT id, name, category, road_address, lat, lng FROM ranked
+		ORDER BY rn, category
+		LIMIT $2`, size, limit)
+	if err != nil {
+		return nil, fmt.Errorf("후보 장소 조회: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Candidate
+	for rows.Next() {
+		var c Candidate
+		if err := rows.Scan(&c.ID, &c.Name, &c.Category, &c.RoadAddress,
+			&c.Lat, &c.Lng); err != nil {
+			return nil, fmt.Errorf("후보 장소 스캔: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) SaveGenerated(
+	ctx context.Context, tripID uuid.UUID, days [][]int64, generatedBy []byte,
+) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("트랜잭션 시작: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM route_stops WHERE route_id = $1`, tripID); err != nil {
+		return fmt.Errorf("기존 일정 삭제: %w", err)
+	}
+
+	for i, placeIDs := range days {
+		if len(placeIDs) == 0 {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO route_stops (route_id, day_no, seq, place_id)
+			SELECT $1, $2, p.ord, p.place_id
+			FROM unnest($3::bigint[]) WITH ORDINALITY AS p(place_id, ord)`,
+			tripID, i+1, placeIDs); err != nil {
+			return fmt.Errorf("생성 일정 저장: %w", err)
+		}
+	}
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE routes SET generated_by = $2 WHERE id = $1`,
+		tripID, generatedBy); err != nil {
+		return fmt.Errorf("생성 출처 기록: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
