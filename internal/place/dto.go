@@ -23,6 +23,7 @@ type PlaceResponse struct {
 	Category    string  `json:"category"`
 	RoadAddress *string `json:"roadAddress"`
 	Tel         *string `json:"tel,omitempty"`
+	HomepageURL *string `json:"homepageUrl,omitempty"`
 	Lat         float64 `json:"lat"`
 	Lng         float64 `json:"lng"`
 
@@ -100,6 +101,7 @@ func newPlaceResponse(p *Place) PlaceResponse {
 		Category:          p.Category,
 		RoadAddress:       p.RoadAddress,
 		Tel:               p.Tel,
+		HomepageURL:       p.HomepageURL,
 		Lat:               p.Lat,
 		Lng:               p.Lng,
 		ImageURL:          p.ImageURL,
