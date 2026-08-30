@@ -14,6 +14,7 @@ type CreateRequest struct {
 	Neutered string   `json:"neutered"`
 	Traits   []string `json:"traits"`
 	PhotoURL *string  `json:"photoUrl"`
+	WeightKg *float64 `json:"weightKg"`
 }
 
 type UpdateRequest struct {
@@ -24,6 +25,7 @@ type UpdateRequest struct {
 	Gender   *string   `json:"gender"`
 	Neutered *string   `json:"neutered"`
 	Traits   *[]string `json:"traits"`
+	WeightKg *float64  `json:"weightKg"`
 
 	PhotoURL json.RawMessage `json:"photoUrl"`
 }

@@ -107,11 +107,12 @@ func (r *Repository) Create(ctx context.Context, p *Pet) (*Pet, error) {
 	var id uuid.UUID
 	err = tx.QueryRow(ctx, `
 		INSERT INTO pet_profiles
-			(user_id, name, species, breed_id, size, gender, neutered, traits, photo_url)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			(user_id, name, species, breed_id, size, gender, neutered, traits, photo_url,
+			 weight_kg)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id`,
 		p.UserID, p.Name, p.Species, p.BreedID, p.Size, p.Gender, p.Neutered,
-		p.Traits, p.PhotoURL,
+		p.Traits, p.PhotoURL, p.WeightKg,
 	).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("반려동물 등록: %w", err)
@@ -175,10 +176,11 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, u *petUpdate) (*P
 			neutered   = COALESCE($7::pet_neutered, neutered),
 			traits     = COALESCE($8::pet_trait[], traits),
 			photo_url  = CASE WHEN $10::boolean THEN $9 ELSE photo_url END,
+			weight_kg  = COALESCE($11, weight_kg),
 			updated_at = now()
 		WHERE id = $1`,
 		id, u.Name, u.Species, u.BreedID, u.Size, u.Gender, u.Neutered,
-		u.Traits, u.PhotoURL, u.PhotoURLSet,
+		u.Traits, u.PhotoURL, u.PhotoURLSet, u.WeightKg,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("반려동물 수정: %w", err)
@@ -208,6 +210,7 @@ type petUpdate struct {
 	Traits      []string
 	PhotoURL    *string
 	PhotoURLSet bool
+	WeightKg    *float64
 }
 
 func scanPet(row pgx.Row) (*Pet, error) {

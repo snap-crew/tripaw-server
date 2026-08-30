@@ -23,6 +23,7 @@ var nameRe = regexp.MustCompile(`^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9 ]{1,12}$`)
 var draftPayloadKeys = map[string]bool{
 	"name": true, "species": true, "breedId": true, "photoUrl": true,
 	"size": true, "gender": true, "neutered": true, "traits": true,
+	"weightKg": true,
 }
 
 func (s *Service) ListBreeds(ctx context.Context, species, q string) ([]Breed, error) {
@@ -78,6 +79,9 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateReque
 	if !allowedSize[req.Size] {
 		return nil, invalid("invalid_size", "크기는 small, medium, large 중 하나여야 합니다")
 	}
+	if err := validateWeight(req.WeightKg); err != nil {
+		return nil, err
+	}
 	if !allowedGender[req.Gender] {
 		return nil, invalid("invalid_gender", "성별은 male 또는 female 이어야 합니다")
 	}
@@ -116,6 +120,7 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateReque
 		Neutered: req.Neutered,
 		Traits:   traits,
 		PhotoURL: req.PhotoURL,
+		WeightKg: req.WeightKg,
 	})
 }
 
@@ -160,6 +165,12 @@ func (s *Service) Update(ctx context.Context, userID, petID uuid.UUID, req *Upda
 			return nil, invalid("invalid_size", "크기는 small, medium, large 중 하나여야 합니다")
 		}
 		u.Size = req.Size
+	}
+	if req.WeightKg != nil {
+		if err := validateWeight(req.WeightKg); err != nil {
+			return nil, err
+		}
+		u.WeightKg = req.WeightKg
 	}
 	if req.Gender != nil {
 		if !allowedGender[*req.Gender] {
@@ -276,6 +287,17 @@ func validatePhotoURL(raw *string) error {
 	if !image.IsManagedURL(*raw) {
 		return invalid("invalid_photo_url",
 			"photoUrl 은 POST /api/images 가 돌려준 주소여야 합니다")
+	}
+	return nil
+}
+
+func validateWeight(w *float64) error {
+	if w == nil {
+		return nil
+	}
+	if *w < MinWeightKg || *w > MaxWeightKg {
+		return invalid("invalid_weight",
+			"몸무게는 0.1kg 이상 150kg 이하여야 합니다")
 	}
 	return nil
 }
