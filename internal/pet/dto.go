@@ -1,44 +1,23 @@
 package pet
 
 import (
-	"encoding/json"
 	"time"
 )
 
 type CreateRequest struct {
-	Name     string   `json:"name"`
-	Species  string   `json:"species"`
-	BreedID  *int     `json:"breedId"`
-	Size     string   `json:"size"`
-	Gender   string   `json:"gender"`
-	Neutered string   `json:"neutered"`
-	Traits   []string `json:"traits"`
-	PhotoURL *string  `json:"photoUrl"`
-	WeightKg *float64 `json:"weightKg"`
+	Name    string   `json:"name"`
+	Species string   `json:"species"`
+	BreedID *int     `json:"breedId"`
+	Size    string   `json:"size"`
+	Traits  []string `json:"traits"`
 }
 
 type UpdateRequest struct {
-	Name     *string   `json:"name"`
-	Species  *string   `json:"species"`
-	BreedID  *int      `json:"breedId"`
-	Size     *string   `json:"size"`
-	Gender   *string   `json:"gender"`
-	Neutered *string   `json:"neutered"`
-	Traits   *[]string `json:"traits"`
-	WeightKg *float64  `json:"weightKg"`
-
-	PhotoURL json.RawMessage `json:"photoUrl"`
-}
-
-func (r *UpdateRequest) photoURL() (value *string, set bool, err error) {
-	if r.PhotoURL == nil {
-		return nil, false, nil
-	}
-	var s *string
-	if err := json.Unmarshal(r.PhotoURL, &s); err != nil {
-		return nil, false, err
-	}
-	return s, true, nil
+	Name    *string   `json:"name"`
+	Species *string   `json:"species"`
+	BreedID *int      `json:"breedId"`
+	Size    *string   `json:"size"`
+	Traits  *[]string `json:"traits"`
 }
 
 type DraftRequest struct {
@@ -62,11 +41,7 @@ type PetResponse struct {
 	Species   string      `json:"species"`
 	Breed     *BreedBrief `json:"breed"`
 	Size      string      `json:"size"`
-	Gender    string      `json:"gender"`
-	Neutered  string      `json:"neutered"`
 	Traits    []string    `json:"traits"`
-	PhotoURL  *string     `json:"photoUrl"`
-	WeightKg  *float64    `json:"weightKg"`
 	CreatedAt string      `json:"createdAt"`
 	UpdatedAt string      `json:"updatedAt"`
 }
@@ -89,16 +64,12 @@ type DraftResponse struct {
 
 func newPetResponse(p *Pet) PetResponse {
 	resp := PetResponse{
-		ID:       p.ID.String(),
-		Name:     p.Name,
-		Species:  p.Species,
-		Size:     p.Size,
-		Gender:   p.Gender,
-		Neutered: p.Neutered,
+		ID:      p.ID.String(),
+		Name:    p.Name,
+		Species: p.Species,
+		Size:    p.Size,
 
 		Traits:    append([]string{}, p.Traits...),
-		PhotoURL:  p.PhotoURL,
-		WeightKg:  p.WeightKg,
 		CreatedAt: p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: p.UpdatedAt.Format(time.RFC3339),
 	}

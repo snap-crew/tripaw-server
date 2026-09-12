@@ -78,8 +78,8 @@ func seedPet(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, name string) uu
 	t.Helper()
 	var id uuid.UUID
 	err := pool.QueryRow(context.Background(), `
-		INSERT INTO pet_profiles (user_id, name, species, gender, neutered, size)
-		VALUES ($1, $2, 'dog', 'male', 'done', 'medium') RETURNING id`,
+		INSERT INTO pet_profiles (user_id, name, species, size)
+		VALUES ($1, $2, 'dog', 'medium') RETURNING id`,
 		userID, name).Scan(&id)
 	if err != nil {
 		t.Fatalf("반려동물 %q 생성: %v", name, err)
