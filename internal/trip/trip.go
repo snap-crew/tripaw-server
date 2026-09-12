@@ -18,6 +18,12 @@ type Pet struct {
 	Traits []string
 }
 
+// 출발지. 클라이언트가 카카오 지도에서 고른 위치다.
+type Origin struct {
+	Lat, Lng float64
+	Name     *string
+}
+
 type Candidate struct {
 	ID          int64
 	Name        string
@@ -47,6 +53,7 @@ type Trip struct {
 	StartDate  *time.Time
 	EndDate    *time.Time
 	Themes     []string
+	Origin     *Origin
 	PlaceCount int
 	Pets       []Pet
 	Days       []Day
@@ -60,6 +67,15 @@ func (t *Trip) DDay(today time.Time) *int {
 	d := int(today.Sub(*t.StartDate).Hours() / 24)
 	return &d
 }
+
+// 수집 장소가 위도 33.119~33.564 · 경도 126.169~126.967 에 들어 있다.
+// 추자도(위도 33.95)까지 담고 육지는 걸러지도록 여유를 둔 범위다.
+const (
+	minOriginLat, maxOriginLat = 32.9, 34.1
+	minOriginLng, maxOriginLng = 125.9, 127.1
+
+	MaxOriginNameLen = 100
+)
 
 var (
 	ErrNotFound  = errors.New("여행을 찾을 수 없습니다")

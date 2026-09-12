@@ -1106,6 +1106,7 @@ sequenceDiagram
 | `endDate` | String | ✅ | `YYYY-MM-DD`. 시작일과 같아도 된다(당일치기) |
 | `petIds` | Array | | 동반 반려동물. **복수 선택 가능**. 첫 번째가 대표가 된다 |
 | `themes` | Array | | 여행 테마. 문자열 자유 |
+| `origin` | Object | | 출발지. `{lat, lng, name?}` — [아래](#tripresponse-공통) 참고 |
 
 ```json
 {
@@ -1113,7 +1114,8 @@ sequenceDiagram
   "startDate": "2026-08-23",
   "endDate": "2026-08-26",
   "petIds": ["550e8400-e29b-41d4-a716-446655440000"],
-  "themes": ["nature", "cafe"]
+  "themes": ["nature", "cafe"],
+  "origin": { "lat": 33.5070, "lng": 126.4930, "name": "제주국제공항" }
 }
 ```
 
@@ -1357,6 +1359,30 @@ flowchart TD
 
 ### TripResponse (공통)
 
+`origin` 은 여행 출발지다. 클라이언트가 카카오 지도에서 고른 위치를 보낸다.
+
+```jsonc
+"origin": { "lat": 33.5070, "lng": 126.4930, "name": "제주국제공항" }
+```
+
+지도에서 얻는 것은 좌표뿐이므로 `lat`·`lng` 가 본체이고, `name` 은 역지오코딩
+(`coord2address`)이나 장소 검색으로 고른 이름이다. 안 보내면 `null` 이고
+응답에도 `null` 로 나간다.
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `lat`,`lng` | Number | 필수. 하나만 보내면 `invalid_origin` |
+| `name` | String? | 선택. 100자 이하. 화면에 다시 보여줄 이름 |
+
+좌표는 제주 범위(위도 `32.9`~`34.1`, 경도 `125.9`~`127.1`) 안이어야 한다.
+추자도까지 들어가고 육지는 걸러진다.
+
+**수정은 보낸 경우에만 바뀐다.** `PATCH` 에서 `origin` 키를 빼면 그대로 두고,
+보내면 좌표와 이름이 함께 교체된다. 지우는 동작은 없다.
+
+**AI 루트 채우기가 이 값을 쓴다** — 1일차를 출발지에서 가까운 곳부터 시작한다.
+공항을 출발지로 주면 첫 장소가 공항 인근에서 잡힌다.
+
 생성·조회·수정·복제·일정 변경이 모두 같은 구조를 돌려준다. 필드는 [GET /api/trips/{id}](#get-apitripsid) 참조.
 
 목록(`GET /api/trips`)의 `featured`·`items`는 여기서 `days`와 `totalPlaceCount`를 뺀 요약 형태다.
@@ -1468,6 +1494,7 @@ X-Content-Type-Options: nosniff
 | `invalid_nickname` | 422 | 회원 이름 1~20자 위반 |
 | `invalid_trip_title` | 422 | 여행 제목 1~20자 위반 |
 | `invalid_date_range` | 422 | 날짜 형식 오류 또는 종료일이 시작일보다 앞, 기간 없는 여행에 AI 루트 채우기 호출 |
+| `invalid_origin` | 422 | 출발지에 `lat`/`lng` 이 빠졌거나, 제주 범위 밖이거나, 이름이 100자 초과 |
 | `no_candidates` | 422 | AI 루트 채우기에 쓸 후보 장소가 없음 |
 | `invalid_pets` | 422 | 동반 반려동물 ID 형식 오류·내 것이 아님 |
 | `invalid_place` | 422 | 일정에 담으려는 장소가 존재하지 않음 |
