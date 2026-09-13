@@ -345,7 +345,6 @@ sequenceDiagram
 |------|------|---------|
 | `invalid_request` | 400 | 본문 파싱 실패 |
 | `invalid_nickname` | 422 | 공백만이거나 20자 초과 |
-| `invalid_photo_url` | 422 | 절대 http(s) 주소가 아님 |
 
 ---
 
@@ -482,22 +481,36 @@ sequenceDiagram
 | `species` | `dog` \| `cat` | `invalid_species` |
 | `breedId` | 필수. **그 종의 품종이어야 한다** | `invalid_breed` |
 | `size` | `small` \| `medium` \| `large` | `invalid_size` |
-| `gender` | `male` \| `female` | `invalid_gender` |
-| `neutered` | `done` \| `not_done` \| `unknown` | `invalid_neutered` |
 | `traits` | 0~3개. 중복 불가. `active`·`calm`·`social`·`timid`·`curious` | `invalid_traits` |
-| `photoUrl` | 선택. `POST /api/images` 가 돌려준 `url` | `invalid_photo_url` |
-| `weightKg` | 선택. `0.1` ~ `150` | `invalid_weight` |
 
 > 이름 규칙은 이모지·특수문자·줄바꿈을 막는다(`보리🐶`, `보리!` 모두 거부). 길이는 **글자 수**로 센다 — `보리`는 6바이트지만 2자다.
 >
 > 화면의 `0/12` 카운터와 "다음 버튼 비활성화"는 클라이언트 표현이다. 서버는 값만 본다.
 >
-> **`weightKg` 와 `size` 는 따로 받는다.** 서버가 몸무게로 `size` 를 계산하지 않는다.
-> `size` 는 화면에서 고른 값 그대로 저장하고, `weightKg` 는 장소의 무게 제한과
-> 비교하는 데 쓴다. 둘이 어긋나도(`size=small`, `weightKg=30`) 거절하지 않는다.
+> **등록 화면은 2단계다** — step1 이름·종·품종 / step2 크기·성향.
+> **위 다섯 개가 등록에 쓰는 전부다.** 성별·중성화·사진·몸무게는 받지 않는다.
 >
-> **`weightKg` 는 지우지 못한다.** 값을 보내면 바뀌고, 안 보내거나 `null` 이면
-> 그대로 둔다. 지우는 동작이 필요해지면 별도로 붙인다.
+> **`size` 는 몸무게 구간으로 고른다.** 화면 선택지가 이 셋이다.
+>
+> | 화면 | 보낼 값 |
+> |------|---------|
+> | 10kg 미만 | `small` |
+> | 10kg 이상 ~ 25kg 이하 | `medium` |
+> | 25kg 초과 | `large` |
+>
+> 서버는 구간을 다시 검사하지 않는다. 화면에서 고른 값을 그대로 저장한다.
+>
+> **`traits` 는 5개 중 최대 3개.** 화면 문구와 보낼 값의 대응이다.
+>
+> | 화면 | 보낼 값 |
+> |------|---------|
+> | 활발해요 | `active` |
+> | 차분해요 | `calm` |
+> | 사교적이에요 | `social` |
+> | 겁이 많아요 | `timid` |
+> | 호기심이 많아요 | `curious` |
+>
+> 0개도 허용한다. 중복이나 목록 밖의 값은 `invalid_traits` 로 거절한다.
 
 ---
 
@@ -547,9 +560,8 @@ sequenceDiagram
 {
   "step": 1,
   "payload": {
-    "name": "보리", "species": "dog", "breedId": 8, "photoUrl": null,
-    "size": null, "gender": null, "neutered": null, "traits": [],
-    "weightKg": null
+    "name": "보리", "species": "dog", "breedId": 8,
+    "size": null, "traits": []
   }
 }
 ```
@@ -595,8 +607,7 @@ sequenceDiagram
 ```json
 {
   "name": "보리", "species": "dog", "breedId": 8, "size": "medium",
-  "gender": "male", "neutered": "done", "traits": ["active", "social"],
-  "photoUrl": null, "weightKg": 12.5
+  "traits": ["active", "social"]
 }
 ```
 
@@ -609,11 +620,7 @@ sequenceDiagram
   "species": "dog",
   "breed": { "id": 8, "name": "보더콜리" },
   "size": "medium",
-  "gender": "male",
-  "neutered": "done",
   "traits": ["active", "social"],
-  "photoUrl": null,
-  "weightKg": 12.5,
   "createdAt": "2026-08-16T01:29:00Z",
   "updatedAt": "2026-08-16T01:29:00Z"
 }
@@ -623,8 +630,6 @@ sequenceDiagram
 |------|------|------|
 | `breed` | Object? | 품종. `{id, name}` |
 | `traits` | Array | 항상 배열. 없으면 `[]` |
-| `photoUrl` | String? | `null`이면 클라이언트가 기본 이미지를 쓴다 |
-| `weightKg` | Number? | 몸무게(kg). 등록·수정에서 받는다. 안 넣으면 `null` |
 
 > **등록이 성공하면 임시 저장(draft)은 같은 트랜잭션에서 사라진다.** 따로 삭제 API를 부를 필요가 없다.
 
@@ -663,9 +668,8 @@ sequenceDiagram
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `name`·`species`·`breedId`·`size`·`gender`·`neutered` | | 보낸 것만 갱신 |
+| `name`·`species`·`breedId`·`size`·`traits` | | 보낸 것만 갱신 |
 | `traits` | Array? | `[]`를 보내면 **성향 전체 해제** |
-| `photoUrl` | String? | `null`을 보내면 **사진 삭제** (키를 빼면 그대로 둠) |
 
 > **종만 바꾸고 품종을 그대로 두면 거부된다**(`invalid_breed`). 강아지 품종이 고양이 프로필에 남기 때문이다. 종을 바꿀 때는 `breedId`도 함께 보낼 것.
 
@@ -1460,11 +1464,7 @@ X-Content-Type-Options: nosniff
 | `invalid_species` | 422 | 종이 `dog`/`cat`이 아님 |
 | `invalid_breed` | 422 | 없는 품종, 또는 종과 품종 불일치 |
 | `invalid_size` | 422 | 크기가 `small`/`medium`/`large`가 아님 |
-| `invalid_weight` | 422 | 몸무게가 0.1~150kg 범위를 벗어남 |
-| `invalid_gender` | 422 | 성별이 `male`/`female`이 아님 |
-| `invalid_neutered` | 422 | 중성화가 `done`/`not_done`/`unknown`이 아님 |
 | `invalid_traits` | 422 | 성향 3개 초과·중복·허용값 외 |
-| `invalid_photo_url` | 422 | 사진 주소가 `POST /api/images` 가 돌려준 형식이 아님 |
 | `invalid_nickname` | 422 | 회원 이름 1~20자 위반 |
 | `invalid_trip_title` | 422 | 여행 제목 1~20자 위반 |
 | `invalid_date_range` | 422 | 날짜 형식 오류 또는 종료일이 시작일보다 앞, 기간 없는 여행에 AI 루트 채우기 호출 |

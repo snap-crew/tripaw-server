@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/daewon/tripaw-server/internal/image"
 	"github.com/google/uuid"
 )
 
@@ -21,9 +20,8 @@ func NewService(repo *Repository) *Service {
 var nameRe = regexp.MustCompile(`^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9 ]{1,12}$`)
 
 var draftPayloadKeys = map[string]bool{
-	"name": true, "species": true, "breedId": true, "photoUrl": true,
-	"size": true, "gender": true, "neutered": true, "traits": true,
-	"weightKg": true,
+	"name": true, "species": true, "breedId": true,
+	"size": true, "traits": true,
 }
 
 func (s *Service) ListBreeds(ctx context.Context, species, q string) ([]Breed, error) {
@@ -79,20 +77,8 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateReque
 	if !allowedSize[req.Size] {
 		return nil, invalid("invalid_size", "크기는 small, medium, large 중 하나여야 합니다")
 	}
-	if err := validateWeight(req.WeightKg); err != nil {
-		return nil, err
-	}
-	if !allowedGender[req.Gender] {
-		return nil, invalid("invalid_gender", "성별은 male 또는 female 이어야 합니다")
-	}
-	if !allowedNeutered[req.Neutered] {
-		return nil, invalid("invalid_neutered", "중성화는 done, not_done, unknown 중 하나여야 합니다")
-	}
 	traits, err := validateTraits(req.Traits)
 	if err != nil {
-		return nil, err
-	}
-	if err := validatePhotoURL(req.PhotoURL); err != nil {
 		return nil, err
 	}
 	if req.BreedID == nil {
@@ -111,16 +97,12 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateReque
 	}
 
 	return s.repo.Create(ctx, &Pet{
-		UserID:   userID,
-		Name:     name,
-		Species:  req.Species,
-		BreedID:  req.BreedID,
-		Size:     req.Size,
-		Gender:   req.Gender,
-		Neutered: req.Neutered,
-		Traits:   traits,
-		PhotoURL: req.PhotoURL,
-		WeightKg: req.WeightKg,
+		UserID:  userID,
+		Name:    name,
+		Species: req.Species,
+		BreedID: req.BreedID,
+		Size:    req.Size,
+		Traits:  traits,
 	})
 }
 
@@ -166,24 +148,6 @@ func (s *Service) Update(ctx context.Context, userID, petID uuid.UUID, req *Upda
 		}
 		u.Size = req.Size
 	}
-	if req.WeightKg != nil {
-		if err := validateWeight(req.WeightKg); err != nil {
-			return nil, err
-		}
-		u.WeightKg = req.WeightKg
-	}
-	if req.Gender != nil {
-		if !allowedGender[*req.Gender] {
-			return nil, invalid("invalid_gender", "성별은 male 또는 female 이어야 합니다")
-		}
-		u.Gender = req.Gender
-	}
-	if req.Neutered != nil {
-		if !allowedNeutered[*req.Neutered] {
-			return nil, invalid("invalid_neutered", "중성화는 done, not_done, unknown 중 하나여야 합니다")
-		}
-		u.Neutered = req.Neutered
-	}
 	if req.Traits != nil {
 		traits, err := validateTraits(*req.Traits)
 		if err != nil {
@@ -206,17 +170,6 @@ func (s *Service) Update(ctx context.Context, userID, petID uuid.UUID, req *Upda
 		u.BreedID = req.BreedID
 	} else if req.Species != nil && *req.Species != current.Species && current.BreedID != nil {
 		return nil, invalid("invalid_breed", "종을 바꾸려면 품종도 함께 선택해 주세요")
-	}
-
-	photoURL, set, err := req.photoURL()
-	if err != nil {
-		return nil, invalid("invalid_photo_url", "photoUrl 형식이 잘못되었습니다")
-	}
-	if set {
-		if err := validatePhotoURL(photoURL); err != nil {
-			return nil, err
-		}
-		u.PhotoURL, u.PhotoURLSet = photoURL, true
 	}
 
 	return s.repo.Update(ctx, petID, &u)
@@ -278,26 +231,4 @@ func validateTraits(traits []string) ([]string, error) {
 		seen[t] = true
 	}
 	return traits, nil
-}
-
-func validatePhotoURL(raw *string) error {
-	if raw == nil || *raw == "" {
-		return nil
-	}
-	if !image.IsManagedURL(*raw) {
-		return invalid("invalid_photo_url",
-			"photoUrl 은 POST /api/images 가 돌려준 주소여야 합니다")
-	}
-	return nil
-}
-
-func validateWeight(w *float64) error {
-	if w == nil {
-		return nil
-	}
-	if *w < MinWeightKg || *w > MaxWeightKg {
-		return invalid("invalid_weight",
-			"몸무게는 0.1kg 이상 150kg 이하여야 합니다")
-	}
-	return nil
 }

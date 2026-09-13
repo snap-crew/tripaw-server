@@ -14,19 +14,10 @@ const (
 
 const MaxPets = 5
 
-// 등록 화면이 받는 몸무게 범위. 치와와 1kg 부터 대형견까지 담고,
-// 오타(120 을 1200 으로)를 걸러낼 정도로만 잡는다.
-const (
-	MinWeightKg = 0.1
-	MaxWeightKg = 150.0
-)
-
 var (
-	allowedSpecies  = map[string]bool{SpeciesDog: true, SpeciesCat: true}
-	allowedGender   = map[string]bool{"male": true, "female": true}
-	allowedNeutered = map[string]bool{"done": true, "not_done": true, "unknown": true}
-	allowedSize     = map[string]bool{"small": true, "medium": true, "large": true}
-	allowedTraits   = map[string]bool{
+	allowedSpecies = map[string]bool{SpeciesDog: true, SpeciesCat: true}
+	allowedSize    = map[string]bool{"small": true, "medium": true, "large": true}
+	allowedTraits  = map[string]bool{
 		"active": true, "calm": true, "social": true, "timid": true, "curious": true,
 	}
 )
@@ -45,11 +36,7 @@ type Pet struct {
 	BreedID   *int
 	BreedName *string
 	Size      string
-	Gender    string
-	Neutered  string
 	Traits    []string
-	PhotoURL  *string
-	WeightKg  *float64
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

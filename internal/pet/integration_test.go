@@ -2,13 +2,11 @@ package pet
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/daewon/tripaw-server/internal/image"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -61,12 +59,9 @@ func validPet(t *testing.T, pool *pgxpool.Pool, name string) *CreateRequest {
 	id := breedID(t, pool, "보더콜리")
 	return &CreateRequest{
 		Name: name, Species: SpeciesDog, BreedID: &id,
-		Size: "medium", Gender: "male", Neutered: "done",
-		Traits: []string{"active", "social"},
+		Size: "medium", Traits: []string{"active", "social"},
 	}
 }
-
-func f64(v float64) *float64 { return &v }
 
 func codeOf(err error) string {
 	var ve *ValidationError
@@ -144,8 +139,6 @@ func TestCreateRejectsInvalidFields(t *testing.T) {
 		{"이름 특수문자", func(r *CreateRequest) { r.Name = "보리!" }, "invalid_pet_name"},
 		{"종 이상값", func(r *CreateRequest) { r.Species = "bird" }, "invalid_species"},
 		{"크기 unknown", func(r *CreateRequest) { r.Size = "unknown" }, "invalid_size"},
-		{"성별 이상값", func(r *CreateRequest) { r.Gender = "other" }, "invalid_gender"},
-		{"중성화 이상값", func(r *CreateRequest) { r.Neutered = "maybe" }, "invalid_neutered"},
 		{"성향 4개", func(r *CreateRequest) {
 			r.Traits = []string{"active", "calm", "social", "timid"}
 		}, "invalid_traits"},
@@ -153,15 +146,6 @@ func TestCreateRejectsInvalidFields(t *testing.T) {
 		{"성향 이상값", func(r *CreateRequest) { r.Traits = []string{"lazy"} }, "invalid_traits"},
 		{"품종 누락", func(r *CreateRequest) { r.BreedID = nil }, "invalid_breed"},
 		{"없는 품종", func(r *CreateRequest) { id := 99999; r.BreedID = &id }, "invalid_breed"},
-		{"사진 상대경로", func(r *CreateRequest) { s := "/pets/a.jpg"; r.PhotoURL = &s }, "invalid_photo_url"},
-		{"외부 CDN 주소", func(r *CreateRequest) {
-			s := "https://evil.example.com/a.jpg"
-			r.PhotoURL = &s
-		}, "invalid_photo_url"},
-		{"이미지 아닌 경로", func(r *CreateRequest) {
-			s := "/api/images/not-a-uuid"
-			r.PhotoURL = &s
-		}, "invalid_photo_url"},
 	}
 
 	for _, tc := range cases {
@@ -335,9 +319,6 @@ func TestUpdateOnlyChangesSentFields(t *testing.T) {
 	if updated.Size != created.Size {
 		t.Errorf("크기가 바뀜: %q → %q", created.Size, updated.Size)
 	}
-	if updated.Gender != created.Gender {
-		t.Errorf("성별이 바뀜: %q → %q", created.Gender, updated.Gender)
-	}
 	if len(updated.Traits) != len(created.Traits) {
 		t.Errorf("성향이 바뀜: %v → %v", created.Traits, updated.Traits)
 	}
@@ -452,151 +433,42 @@ func TestFindDraftMissing(t *testing.T) {
 	}
 }
 
-func TestDelete(t *testing.T) {
+// 확정된 등록 플로우: step1 이름·종·품종 / step2 크기·성향. 이 다섯이 전부다.
+func TestCreateAcceptsRegistrationFlowFieldsOnly(t *testing.T) {
 	svc, pool, userID := testSvc(t)
-	ctx := context.Background()
+	breed := breedID(t, pool, "보더콜리")
 
-	created, err := svc.Create(ctx, userID, validPet(t, pool, "보리"))
+	p, err := svc.Create(context.Background(), userID, &CreateRequest{
+		Name:    "보리",
+		Species: SpeciesDog,
+		BreedID: &breed,
+		Size:    "medium",
+		Traits:  []string{"active", "social"},
+	})
 	if err != nil {
-		t.Fatalf("등록: %v", err)
+		t.Fatalf("화면이 보내는 값만으로 등록 실패: %v", err)
 	}
-
-	if err := svc.Delete(ctx, userID, created.ID); err != nil {
-		t.Fatalf("삭제: %v", err)
-	}
-
-	if _, err := svc.Get(ctx, userID, created.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("삭제 후 조회 err = %v, 기대 ErrNotFound", err)
+	if p.Name != "보리" || p.Size != "medium" || len(p.Traits) != 2 {
+		t.Errorf("저장된 값이 다르다: %+v", p)
 	}
 }
 
-func TestUpdatePhotoURLThreeStates(t *testing.T) {
-	svc, pool, userID := testSvc(t)
-	ctx := context.Background()
+func TestCornishRexHasStandardName(t *testing.T) {
+	svc, _, _ := testSvc(t)
 
-	req := validPet(t, pool, "보리")
-	photo := image.URLFor(uuid.New())
-	req.PhotoURL = &photo
-
-	created, err := svc.Create(ctx, userID, req)
+	items, err := svc.ListBreeds(context.Background(), SpeciesCat, "렉스")
 	if err != nil {
-		t.Fatalf("등록: %v", err)
-	}
-	if created.PhotoURL == nil || *created.PhotoURL != photo {
-		t.Fatalf("등록 직후 photoUrl = %v, 기대 %q", created.PhotoURL, photo)
+		t.Fatalf("품종 검색: %v", err)
 	}
 
-	decode := func(body string) *UpdateRequest {
-		t.Helper()
-		var u UpdateRequest
-		if err := json.Unmarshal([]byte(body), &u); err != nil {
-			t.Fatalf("본문 파싱 %s: %v", body, err)
-		}
-		return &u
+	names := make(map[string]bool, len(items))
+	for _, b := range items {
+		names[b.Name] = true
 	}
-
-	got, err := svc.Update(ctx, userID, created.ID, decode(`{"name":"초코"}`))
-	if err != nil {
-		t.Fatalf("이름만 수정: %v", err)
+	if !names["코니시 렉스"] {
+		t.Errorf("코니시 렉스가 없다: %v", names)
 	}
-	if got.PhotoURL == nil || *got.PhotoURL != photo {
-		t.Errorf("키 없음: photoUrl = %v, 기대 %q (건드리면 안 된다)", got.PhotoURL, photo)
-	}
-
-	next := image.URLFor(uuid.New())
-	got, err = svc.Update(ctx, userID, created.ID, decode(`{"photoUrl":"`+next+`"}`))
-	if err != nil {
-		t.Fatalf("사진 교체: %v", err)
-	}
-	if got.PhotoURL == nil || *got.PhotoURL != next {
-		t.Errorf("교체: photoUrl = %v, 기대 %q", got.PhotoURL, next)
-	}
-
-	got, err = svc.Update(ctx, userID, created.ID, decode(`{"photoUrl":null}`))
-	if err != nil {
-		t.Fatalf("사진 삭제: %v", err)
-	}
-	if got.PhotoURL != nil {
-		t.Errorf("삭제: photoUrl = %v, 기대 nil", *got.PhotoURL)
-	}
-}
-
-func TestCreateStoresWeight(t *testing.T) {
-	svc, pool, userID := testSvc(t)
-
-	req := validPet(t, pool, "보리")
-	req.WeightKg = f64(12.5)
-
-	p, err := svc.Create(context.Background(), userID, req)
-	if err != nil {
-		t.Fatalf("등록: %v", err)
-	}
-	if p.WeightKg == nil || *p.WeightKg != 12.5 {
-		t.Fatalf("weightKg = %v, want 12.5", p.WeightKg)
-	}
-
-	// 몸무게는 선택값이다. 안 보내도 등록된다.
-	req2 := validPet(t, pool, "초코")
-	p2, err := svc.Create(context.Background(), userID, req2)
-	if err != nil {
-		t.Fatalf("몸무게 없이 등록: %v", err)
-	}
-	if p2.WeightKg != nil {
-		t.Errorf("weightKg = %v, 안 보냈으면 비어 있어야 한다", *p2.WeightKg)
-	}
-}
-
-func TestCreateRejectsWeightOutOfRange(t *testing.T) {
-	svc, pool, userID := testSvc(t)
-
-	for name, w := range map[string]float64{
-		"0kg":      0,
-		"음수":       -1,
-		"150kg 초과": 150.1,
-		"오타(1200)": 1200,
-	} {
-		req := validPet(t, pool, "보리")
-		req.WeightKg = f64(w)
-
-		_, err := svc.Create(context.Background(), userID, req)
-		if codeOf(err) != "invalid_weight" {
-			t.Errorf("%s: code = %q, want invalid_weight", name, codeOf(err))
-		}
-	}
-}
-
-func TestUpdateWeightAloneIsValidated(t *testing.T) {
-	svc, pool, userID := testSvc(t)
-
-	p, err := svc.Create(context.Background(), userID, validPet(t, pool, "보리"))
-	if err != nil {
-		t.Fatalf("등록: %v", err)
-	}
-
-	// 크기를 함께 보내지 않아도 몸무게 검증이 걸려야 한다.
-	_, err = svc.Update(context.Background(), userID, p.ID, &UpdateRequest{WeightKg: f64(900)})
-	if codeOf(err) != "invalid_weight" {
-		t.Fatalf("code = %q, want invalid_weight", codeOf(err))
-	}
-
-	updated, err := svc.Update(context.Background(), userID, p.ID, &UpdateRequest{WeightKg: f64(8.2)})
-	if err != nil {
-		t.Fatalf("수정: %v", err)
-	}
-	if updated.WeightKg == nil || *updated.WeightKg != 8.2 {
-		t.Fatalf("weightKg = %v, want 8.2", updated.WeightKg)
-	}
-	if updated.Size != "medium" {
-		t.Errorf("size = %q, 몸무게만 보냈으므로 그대로여야 한다", updated.Size)
-	}
-}
-
-func TestSaveDraftAcceptsWeight(t *testing.T) {
-	svc, _, userID := testSvc(t)
-
-	err := svc.SaveDraft(context.Background(), userID, 2,
-		map[string]any{"name": "보리", "weightKg": 12.5})
-	if err != nil {
-		t.Fatalf("몸무게가 담긴 임시 저장이 거절됐다: %v", err)
+	if names["코시니 렉스"] {
+		t.Error("오타 표기 코시니 렉스가 남아 있다")
 	}
 }
