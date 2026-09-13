@@ -132,7 +132,12 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateReque
 		themes = []string{}
 	}
 
-	id, err := s.repo.Create(ctx, userID, title, start, end, themes, petIDs)
+	origin, err := parseOrigin(req.Origin)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := s.repo.Create(ctx, userID, title, start, end, themes, petIDs, origin)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +199,12 @@ func (s *Service) Update(
 		endArg = end
 	}
 
-	if err := s.repo.Update(ctx, tripID, title, startArg, endArg, req.Themes); err != nil {
+	origin, err := parseOrigin(req.Origin)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Update(ctx, tripID, title, startArg, endArg, req.Themes, origin); err != nil {
 		return nil, err
 	}
 
@@ -377,4 +387,32 @@ func clampLimit(n int) int {
 		return maxLimit
 	}
 	return n
+}
+
+// 클라이언트가 카카오 지도에서 고른 위치를 받는다. 지도에서 얻는 것은 좌표뿐이고
+// 이름은 역지오코딩이나 장소 검색 결과라 선택값이다.
+func parseOrigin(req *OriginRequest) (*Origin, error) {
+	if req == nil {
+		return nil, nil
+	}
+	if req.Lat == nil || req.Lng == nil {
+		return nil, invalid("invalid_origin", "출발지는 lat 과 lng 이 모두 필요합니다")
+	}
+
+	lat, lng := *req.Lat, *req.Lng
+	if lat < minOriginLat || lat > maxOriginLat || lng < minOriginLng || lng > maxOriginLng {
+		return nil, invalid("invalid_origin", "출발지가 제주 범위를 벗어났습니다")
+	}
+
+	o := &Origin{Lat: lat, Lng: lng}
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if len([]rune(name)) > MaxOriginNameLen {
+			return nil, invalid("invalid_origin", "출발지 이름은 100자 이하여야 합니다")
+		}
+		if name != "" {
+			o.Name = &name
+		}
+	}
+	return o, nil
 }

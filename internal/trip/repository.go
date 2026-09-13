@@ -19,6 +19,7 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 }
 
 const tripColumns = `r.id, r.user_id, r.title, r.start_date, r.end_date, r.themes,
+	ST_Y(r.origin_geom::geometry), ST_X(r.origin_geom::geometry), r.origin_name,
 	(SELECT count(*) FROM route_stops s WHERE s.route_id = r.id) AS place_count,
 	r.created_at`
 
@@ -174,7 +175,7 @@ func (r *Repository) LoadDays(ctx context.Context, t *Trip) error {
 
 func (r *Repository) Create(
 	ctx context.Context, userID uuid.UUID, title string,
-	start, end time.Time, themes []string, petIDs []uuid.UUID,
+	start, end time.Time, themes []string, petIDs []uuid.UUID, origin *Origin,
 ) (uuid.UUID, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -188,11 +189,22 @@ func (r *Repository) Create(
 	}
 	nights := int(end.Sub(start).Hours() / 24)
 
+	var lat, lng *float64
+	var originName *string
+	if origin != nil {
+		lat, lng, originName = &origin.Lat, &origin.Lng, origin.Name
+	}
+
 	var id uuid.UUID
 	err = tx.QueryRow(ctx, `
-		INSERT INTO routes (user_id, pet_profile_id, title, nights, themes, start_date, end_date)
-		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-		userID, lead, title, nights, themes, start, end).Scan(&id)
+		INSERT INTO routes (user_id, pet_profile_id, title, nights, themes,
+		                    start_date, end_date, origin_geom, origin_name)
+		VALUES ($1, $2, $3, $4, $5, $6, $7,
+		        CASE WHEN $8::float8 IS NULL THEN NULL
+		             ELSE ST_SetSRID(ST_MakePoint($9, $8), 4326)::geography END,
+		        $10)
+		RETURNING id`,
+		userID, lead, title, nights, themes, start, end, lat, lng, originName).Scan(&id)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("여행 생성: %w", err)
 	}
@@ -209,11 +221,17 @@ func (r *Repository) Create(
 
 func (r *Repository) Update(
 	ctx context.Context, id uuid.UUID,
-	title *string, start, end *time.Time, themes *[]string,
+	title *string, start, end *time.Time, themes *[]string, origin *Origin,
 ) error {
 	var themeArg any
 	if themes != nil {
 		themeArg = *themes
+	}
+
+	var lat, lng *float64
+	var originName *string
+	if origin != nil {
+		lat, lng, originName = &origin.Lat, &origin.Lng, origin.Name
 	}
 
 	_, err := r.pool.Exec(ctx, `
@@ -222,9 +240,12 @@ func (r *Repository) Update(
 			start_date = COALESCE($3::date, start_date),
 			end_date   = COALESCE($4::date, end_date),
 			themes     = COALESCE($5::text[], themes),
-			nights     = COALESCE($4::date, end_date) - COALESCE($3::date, start_date)
+			nights     = COALESCE($4::date, end_date) - COALESCE($3::date, start_date),
+			origin_geom = CASE WHEN $6::float8 IS NULL THEN origin_geom
+			                   ELSE ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography END,
+			origin_name = CASE WHEN $6::float8 IS NULL THEN origin_name ELSE $8 END
 		WHERE id = $1`,
-		id, title, start, end, themeArg)
+		id, title, start, end, themeArg, lat, lng, originName)
 	if err != nil {
 		return fmt.Errorf("여행 수정: %w", err)
 	}
@@ -252,9 +273,9 @@ func (r *Repository) Duplicate(ctx context.Context, src *Trip, newTitle string) 
 	var id uuid.UUID
 	err = tx.QueryRow(ctx, `
 		INSERT INTO routes (user_id, pet_profile_id, title, nights, transport,
-		                    origin_geom, themes, start_date, end_date)
+		                    origin_geom, origin_name, themes, start_date, end_date)
 		SELECT user_id, pet_profile_id, $2, nights, transport,
-		       origin_geom, themes, start_date, end_date
+		       origin_geom, origin_name, themes, start_date, end_date
 		FROM routes WHERE id = $1
 		RETURNING id`, src.ID, newTitle).Scan(&id)
 	if err != nil {
@@ -535,10 +556,15 @@ func (r *Repository) ReplacePets(ctx context.Context, tripID uuid.UUID, petIDs [
 
 func scanTrip(row pgx.Row) (*Trip, error) {
 	var t Trip
+	var lat, lng *float64
+	var originName *string
 	err := row.Scan(&t.ID, &t.UserID, &t.Title, &t.StartDate, &t.EndDate,
-		&t.Themes, &t.PlaceCount, &t.CreatedAt)
+		&t.Themes, &lat, &lng, &originName, &t.PlaceCount, &t.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("여행 스캔: %w", err)
+	}
+	if lat != nil && lng != nil {
+		t.Origin = &Origin{Lat: *lat, Lng: *lng, Name: originName}
 	}
 	return &t, nil
 }

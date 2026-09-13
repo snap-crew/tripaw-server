@@ -83,7 +83,7 @@ func (s *Service) planDays(ctx context.Context, t *Trip, cands []Candidate) ([][
 		if reason != "" {
 			slog.Warn("AI 일정 생성 실패, 랭킹으로 대체", "tripId", t.ID, "reason", reason)
 		}
-		return fallbackDays(cands, len(t.Days)), generatedBy("ranking", "")
+		return fallbackDays(cands, len(t.Days), t.Origin), generatedBy("ranking", "")
 	}
 
 	if s.ai == nil {
@@ -129,6 +129,13 @@ func planPrompt(t *Trip, cands []Candidate) string {
 	if len(t.Themes) > 0 {
 		fmt.Fprintf(&b, "테마: %s\n", strings.Join(t.Themes, ", "))
 	}
+	if t.Origin != nil {
+		name := "출발지"
+		if t.Origin.Name != nil {
+			name = *t.Origin.Name
+		}
+		fmt.Fprintf(&b, "출발지: %s (위도 %.4f, 경도 %.4f)\n", name, t.Origin.Lat, t.Origin.Lng)
+	}
 
 	fmt.Fprintf(&b, `
 규칙:
@@ -136,10 +143,10 @@ func planPrompt(t *Trip, cands []Candidate) string {
 - 아래 후보 목록에 있는 placeId 만 쓴다. 목록에 없는 번호를 만들지 않는다
 - 여행 전체에서 같은 장소를 두 번 쓰지 않는다
 - 하루 안에서는 주소가 가까운 곳끼리 묶고, 이동하기 좋은 순서로 배열한다
-- 하루에 restaurant 는 최대 1곳, cafe 는 최대 1곳까지만 넣는다
+- 하루에 restaurant 는 최대 1곳, cafe 는 최대 1곳까지만 넣는다%s
 
 후보 (placeId | 카테고리 | 주소 | 이름):
-`, len(t.Days), stopsPerDay)
+`, len(t.Days), stopsPerDay, originRule(t))
 
 	for _, c := range cands {
 		addr := ""
@@ -196,16 +203,21 @@ func parsePlan(raw []byte, cands []Candidate, dayCount int) [][]int64 {
 //
 // 랭킹 1위를 그날의 기준점으로 잡고 가까운 곳부터 채우되, 이미 쓴 카테고리는
 // categoryDetourKm 만큼 멀게 쳐서 같은 종류만 몰리지 않게 한다.
-func fallbackDays(cands []Candidate, dayCount int) [][]int64 {
+func fallbackDays(cands []Candidate, dayCount int, origin *Origin) [][]int64 {
 	used := make([]bool, len(cands))
 	days := make([][]int64, dayCount)
 
 	for d := range days {
 		seed := -1
-		for i := range cands {
-			if !used[i] {
-				seed = i
-				break
+		if d == 0 && origin != nil {
+			seed = nearestTo(cands, used, origin)
+		}
+		if seed < 0 {
+			for i := range cands {
+				if !used[i] {
+					seed = i
+					break
+				}
 			}
 		}
 		if seed < 0 {
@@ -260,4 +272,26 @@ func petSize(pets []Pet) string {
 		}
 	}
 	return out
+}
+
+func originRule(t *Trip) string {
+	if t.Origin == nil {
+		return ""
+	}
+	return "\n- 1일차는 출발지에서 가까운 곳부터 시작한다"
+}
+
+// 출발지에서 가장 가까운, 아직 쓰지 않은 후보.
+func nearestTo(cands []Candidate, used []bool, o *Origin) int {
+	ref := Candidate{Lat: o.Lat, Lng: o.Lng}
+	best, bestKm := -1, 0.0
+	for i := range cands {
+		if used[i] {
+			continue
+		}
+		if km := distanceKm(ref, cands[i]); best < 0 || km < bestKm {
+			best, bestKm = i, km
+		}
+	}
+	return best
 }

@@ -4,20 +4,28 @@ import "time"
 
 const dateFmt = "2006-01-02"
 
+type OriginRequest struct {
+	Lat  *float64 `json:"lat"`
+	Lng  *float64 `json:"lng"`
+	Name *string  `json:"name"`
+}
+
 type CreateRequest struct {
-	Title     string   `json:"title"`
-	StartDate string   `json:"startDate"`
-	EndDate   string   `json:"endDate"`
-	PetIDs    []string `json:"petIds"`
-	Themes    []string `json:"themes"`
+	Title     string         `json:"title"`
+	StartDate string         `json:"startDate"`
+	EndDate   string         `json:"endDate"`
+	PetIDs    []string       `json:"petIds"`
+	Themes    []string       `json:"themes"`
+	Origin    *OriginRequest `json:"origin"`
 }
 
 type UpdateRequest struct {
-	Title     *string   `json:"title"`
-	StartDate *string   `json:"startDate"`
-	EndDate   *string   `json:"endDate"`
-	PetIDs    *[]string `json:"petIds"`
-	Themes    *[]string `json:"themes"`
+	Title     *string        `json:"title"`
+	StartDate *string        `json:"startDate"`
+	EndDate   *string        `json:"endDate"`
+	PetIDs    *[]string      `json:"petIds"`
+	Themes    *[]string      `json:"themes"`
+	Origin    *OriginRequest `json:"origin"`
 }
 
 type AddStopsRequest struct {
@@ -50,6 +58,12 @@ type DayResponse struct {
 	Stops []StopResponse `json:"stops"`
 }
 
+type OriginResponse struct {
+	Lat  float64 `json:"lat"`
+	Lng  float64 `json:"lng"`
+	Name *string `json:"name"`
+}
+
 type TripSummary struct {
 	ID         string        `json:"id"`
 	Title      *string       `json:"title"`
@@ -63,8 +77,9 @@ type TripSummary struct {
 
 type TripResponse struct {
 	TripSummary
-	TotalPlaceCount int           `json:"totalPlaceCount"`
-	Days            []DayResponse `json:"days"`
+	Origin          *OriginResponse `json:"origin"`
+	TotalPlaceCount int             `json:"totalPlaceCount"`
+	Days            []DayResponse   `json:"days"`
 }
 
 type ListResponse struct {
@@ -116,8 +131,14 @@ func newTripResponse(t *Trip, today time.Time) TripResponse {
 		})
 	}
 
+	var origin *OriginResponse
+	if t.Origin != nil {
+		origin = &OriginResponse{Lat: t.Origin.Lat, Lng: t.Origin.Lng, Name: t.Origin.Name}
+	}
+
 	return TripResponse{
 		TripSummary:     newSummary(t, today),
+		Origin:          origin,
 		TotalPlaceCount: t.PlaceCount,
 		Days:            days,
 	}

@@ -679,3 +679,57 @@ func contains(list []string, want string) bool {
 	}
 	return false
 }
+
+func TestCreateStoresAndReturnsOrigin(t *testing.T) {
+	svc, _, userID := testSvc(t)
+	lat, lng, name := 33.5070, 126.4930, "제주국제공항"
+
+	trip := mustCreate(t, svc, userID, &CreateRequest{
+		Title: "제주 1박 2일", StartDate: day(7), EndDate: day(8),
+		Origin: &OriginRequest{Lat: &lat, Lng: &lng, Name: &name},
+	})
+
+	if trip.Origin == nil {
+		t.Fatal("출발지가 저장되지 않았다")
+	}
+	if trip.Origin.Lat != lat || trip.Origin.Lng != lng {
+		t.Errorf("좌표 = %v,%v want %v,%v", trip.Origin.Lat, trip.Origin.Lng, lat, lng)
+	}
+	if trip.Origin.Name == nil || *trip.Origin.Name != name {
+		t.Errorf("이름 = %v, want %q", trip.Origin.Name, name)
+	}
+
+	// 안 보내면 그대로 둔다
+	updated, err := svc.Update(context.Background(), userID, trip.ID,
+		&UpdateRequest{Title: strPtr("이름만 변경")})
+	if err != nil {
+		t.Fatalf("수정: %v", err)
+	}
+	if updated.Origin == nil || updated.Origin.Lat != lat {
+		t.Errorf("출발지가 사라졌다: %v", updated.Origin)
+	}
+
+	// 보내면 바뀐다
+	lat2, lng2 := 33.2400, 126.5600
+	moved, err := svc.Update(context.Background(), userID, trip.ID,
+		&UpdateRequest{Origin: &OriginRequest{Lat: &lat2, Lng: &lng2}})
+	if err != nil {
+		t.Fatalf("출발지 변경: %v", err)
+	}
+	if moved.Origin.Lat != lat2 {
+		t.Errorf("좌표가 안 바뀜: %v", moved.Origin)
+	}
+}
+
+func TestCreateWithoutOriginIsNull(t *testing.T) {
+	svc, _, userID := testSvc(t)
+
+	trip := mustCreate(t, svc, userID, &CreateRequest{
+		Title: "출발지 없음", StartDate: day(7), EndDate: day(7),
+	})
+	if trip.Origin != nil {
+		t.Errorf("출발지 = %v, 안 보냈으면 비어 있어야 한다", trip.Origin)
+	}
+}
+
+func strPtr(v string) *string { return &v }

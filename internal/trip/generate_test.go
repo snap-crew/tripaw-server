@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -63,7 +64,7 @@ func TestFallbackDaysGroupsEachDayGeographically(t *testing.T) {
 		at(8, "attraction", 33.25, 126.22),
 	}
 
-	days := fallbackDays(cs, 2)
+	days := fallbackDays(cs, 2, nil)
 
 	east := map[int64]bool{1: true, 3: true, 5: true, 7: true}
 	for d, day := range days {
@@ -87,7 +88,7 @@ func TestFallbackDaysAvoidsRepeatingCategoryWhenClose(t *testing.T) {
 		at(3, "restaurant", 33.50, 126.50),
 	}
 
-	day := fallbackDays(cs, 1)[0]
+	day := fallbackDays(cs, 1, nil)[0]
 	if len(day) != 3 {
 		t.Fatalf("일정 %d개", len(day))
 	}
@@ -97,7 +98,7 @@ func TestFallbackDaysAvoidsRepeatingCategoryWhenClose(t *testing.T) {
 }
 
 func TestFallbackDaysStopsWhenCandidatesRunOut(t *testing.T) {
-	days := fallbackDays(cands(1, 2), 3)
+	days := fallbackDays(cands(1, 2), 3, nil)
 
 	got := 0
 	for _, d := range days {
@@ -243,5 +244,61 @@ func TestGenerateRejectsOtherUsersTrip(t *testing.T) {
 	_, err := svc.Generate(context.Background(), uuid.New(), trip.ID)
 	if !errors.Is(err, ErrForbidden) {
 		t.Fatalf("err = %v, want ErrForbidden", err)
+	}
+}
+
+func TestFallbackDaysStartsFirstDayNearOrigin(t *testing.T) {
+	// 랭킹 1위는 동쪽인데 출발지는 서쪽이다. 1일차는 서쪽에서 시작해야 한다.
+	cs := []Candidate{
+		at(1, "attraction", 33.45, 126.90),
+		at(2, "cafe", 33.45, 126.91),
+		at(3, "restaurant", 33.46, 126.90),
+		at(4, "culture", 33.25, 126.20),
+		at(5, "cafe", 33.25, 126.21),
+		at(6, "restaurant", 33.26, 126.20),
+		at(7, "attraction", 33.24, 126.22),
+		at(8, "culture", 33.46, 126.92),
+	}
+	origin := &Origin{Lat: 33.25, Lng: 126.20}
+
+	days := fallbackDays(cs, 2, origin)
+
+	west := map[int64]bool{4: true, 5: true, 6: true, 7: true}
+	if !west[days[0][0]] {
+		t.Fatalf("1일차 첫 장소 = %d, 출발지에서 가까운 서쪽이어야 한다", days[0][0])
+	}
+	for _, id := range days[0] {
+		if !west[id] {
+			t.Errorf("1일차 %v: 출발지에서 먼 곳이 섞였다", days[0])
+			break
+		}
+	}
+}
+
+func TestParseOriginValidates(t *testing.T) {
+	f := func(v float64) *float64 { return &v }
+	s := func(v string) *string { return &v }
+
+	if _, err := parseOrigin(nil); err != nil {
+		t.Errorf("출발지를 안 보내면 통과해야 한다: %v", err)
+	}
+
+	for name, req := range map[string]*OriginRequest{
+		"lng 누락":     {Lat: f(33.5)},
+		"lat 누락":     {Lng: f(126.5)},
+		"서울":         {Lat: f(37.5665), Lng: f(126.9780)},
+		"이름 100자 초과": {Lat: f(33.5), Lng: f(126.5), Name: s(strings.Repeat("가", 101))},
+	} {
+		if _, err := parseOrigin(req); codeOf(err) != "invalid_origin" {
+			t.Errorf("%s: code = %q, want invalid_origin", name, codeOf(err))
+		}
+	}
+
+	o, err := parseOrigin(&OriginRequest{Lat: f(33.5070), Lng: f(126.4930), Name: s(" 제주국제공항 ")})
+	if err != nil {
+		t.Fatalf("제주공항: %v", err)
+	}
+	if o.Name == nil || *o.Name != "제주국제공항" {
+		t.Errorf("이름 = %v, 앞뒤 공백을 지워야 한다", o.Name)
 	}
 }
