@@ -10,6 +10,7 @@ import (
 	"github.com/daewon/tripaw-server/internal/auth"
 	"github.com/daewon/tripaw-server/internal/httpx"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -121,7 +122,13 @@ func (h *Handler) recommended(c *gin.Context) {
 		limit = 10
 	}
 
-	items, err := h.svc.Recommended(c.Request.Context(), userID, limit)
+	petIDs, err := queryPetIDs(c)
+	if err != nil {
+		httpx.Error(c, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+
+	items, err := h.svc.Recommended(c.Request.Context(), userID, petIDs, limit)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -311,6 +318,32 @@ func parseFilter(c *gin.Context) (*Filter, error) {
 	return f, nil
 }
 
+// ?petIds=<uuid>,<uuid>  값이 없으면 비개인화(홈탭).
+// ?petIds=me  는 등록한 반려동물 전체를 뜻한다.
+func queryPetIDs(c *gin.Context) ([]uuid.UUID, error) {
+	raw := strings.TrimSpace(c.Query("petIds"))
+	if raw == "" {
+		return nil, nil
+	}
+	if raw == "me" {
+		return []uuid.UUID{}, nil
+	}
+
+	out := []uuid.UUID{}
+	for _, one := range strings.Split(raw, ",") {
+		one = strings.TrimSpace(one)
+		if one == "" {
+			continue
+		}
+		id, err := uuid.Parse(one)
+		if err != nil {
+			return nil, errors.New("petIds 형식이 잘못되었습니다")
+		}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
 func pathPlaceID(c *gin.Context, key string) (int64, bool) {
 	id, err := strconv.ParseInt(c.Param(key), 10, 64)
 	if err != nil || id <= 0 {
@@ -351,6 +384,9 @@ func queryBoolPtr(c *gin.Context, key string) *bool {
 
 func writeError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, ErrUnknownPet):
+		httpx.Error(c, http.StatusUnprocessableEntity, "invalid_pets",
+			"등록되지 않은 반려동물이 포함되어 있습니다")
 	case errors.Is(err, ErrInvalidCursor):
 		httpx.Error(c, http.StatusBadRequest, "invalid_cursor", "커서가 올바르지 않습니다")
 	case errors.Is(err, ErrNotFound):

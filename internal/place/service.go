@@ -61,8 +61,27 @@ func (s *Service) List(
 	return items, nextCursor(items, limit), total, nil
 }
 
-func (s *Service) Recommended(ctx context.Context, userID uuid.UUID, limit int) ([]Place, error) {
-	return s.repo.Recommended(ctx, userID, clampLimit(limit))
+// petIDs 가 비어 있으면 비개인화다. 홈탭(최대 10개 가로 스크롤)이 그 경우다.
+// 값이 있으면 그 반려동물들이 못 들어가는 곳을 뒤로 민다.
+func (s *Service) Recommended(
+	ctx context.Context, userID uuid.UUID, petIDs []uuid.UUID, limit int,
+) ([]Place, error) {
+	var size string
+	maxKg := 0.0
+
+	if petIDs != nil {
+		sizes, err := s.repo.PetSizes(ctx, userID, petIDs)
+		if err != nil {
+			return nil, err
+		}
+		if len(petIDs) > 0 && len(sizes) != len(petIDs) {
+			return nil, ErrUnknownPet
+		}
+		size = LargestSize(sizes)
+		maxKg = petBandMaxKg[size]
+	}
+
+	return s.repo.Recommended(ctx, userID, size, maxKg, clampLimit(limit))
 }
 
 func (s *Service) Get(ctx context.Context, userID uuid.UUID, placeID int64) (*Place, []string, error) {

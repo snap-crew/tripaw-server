@@ -221,20 +221,53 @@ func (r *Repository) Count(ctx context.Context, userID uuid.UUID, f *Filter) (in
 	return n, nil
 }
 
-func (r *Repository) Recommended(ctx context.Context, userID uuid.UUID, limit int) ([]Place, error) {
+// petSize 가 빈 문자열이면 비개인화다. 값이 있으면 그 크기가 못 들어가는 곳을
+// 목록에서 빼지 않고 뒤로 민다. 무게·크기 제한 데이터가 62곳 중 8곳뿐이라
+// 걸러내면 구간 추정 때문에 들어갈 수 있는 곳까지 잃는다.
+func (r *Repository) Recommended(
+	ctx context.Context, userID uuid.UUID, petSize string, petMaxKg float64, limit int,
+) ([]Place, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT `+placeColumns+`, NULL::float8 AS distance`+placeFrom+`
 		WHERE v.status = 'allowed' AND NOT v.needs_verification
 		  AND v.category <> 'shop'
-		ORDER BY (v.image_url IS NOT NULL) DESC,
+		ORDER BY ($2 = '' OR (
+		             v.size_limit >= $2::size_limit
+		             AND (v.max_weight_kg IS NULL OR v.max_weight_kg >= $3)
+		         )) DESC,
+		         (v.image_url IS NOT NULL) DESC,
 		         v.image_count DESC,
 		         v.confidence DESC NULLS LAST,
 		         v.id
-		LIMIT $2`, userID, limit)
+		LIMIT $4`, userID, petSize, petMaxKg, limit)
 	if err != nil {
 		return nil, fmt.Errorf("추천 장소: %w", err)
 	}
 	return collectPlaces(rows)
+}
+
+// 추천 개인화에 쓸 크기만 읽는다. petIDs 가 비면 사용자의 전체 반려동물.
+func (r *Repository) PetSizes(
+	ctx context.Context, userID uuid.UUID, petIDs []uuid.UUID,
+) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT size::text FROM pet_profiles
+		WHERE user_id = $1 AND (cardinality($2::uuid[]) = 0 OR id = ANY($2))`,
+		userID, petIDs)
+	if err != nil {
+		return nil, fmt.Errorf("반려동물 크기 조회: %w", err)
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var sz string
+		if err := rows.Scan(&sz); err != nil {
+			return nil, fmt.Errorf("크기 스캔: %w", err)
+		}
+		out = append(out, sz)
+	}
+	return out, rows.Err()
 }
 
 func (r *Repository) FindByID(ctx context.Context, userID uuid.UUID, placeID int64) (*Place, error) {
