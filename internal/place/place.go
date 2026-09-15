@@ -72,34 +72,9 @@ type CategoryCount struct {
 	Count    int
 }
 
-// 등록 화면은 몸무게를 숫자로 받지 않고 구간 3개만 받는다. 장소의 무게 제한과
-// 비교하려면 구간 안에서 가장 무거울 수 있는 값을 써야 한다.
-//
-//	소형  10kg 미만    → 10kg 에 근접할 수 있으므로 허용치가 10 이상이어야 통과
-//	중형  10~25kg      → 25
-//	대형  25kg 초과    → 상한이 없다. 무게를 명시한 곳은 통과시키지 않는다
-var petBandMaxKg = map[string]float64{"small": 10, "medium": 25, "large": unboundedKg}
-
-// 어떤 실제 무게 제한보다도 큰 값. 대형견이 무게 제한 있는 곳을 통과하지 못하게 한다.
-const unboundedKg = 100000
-
-var sizeRank = map[string]int{"small": 1, "medium": 2, "large": 3}
-
-// 여러 마리를 데려가면 전부 들어갈 수 있어야 하므로 가장 큰 개를 기준으로 본다.
-func LargestSize(sizes []string) string {
-	out := ""
-	for _, s := range sizes {
-		if sizeRank[s] > sizeRank[out] {
-			out = s
-		}
-	}
-	return out
-}
-
 var (
 	ErrNotFound      = errors.New("장소를 찾을 수 없습니다")
 	ErrInvalidCursor = errors.New("커서가 올바르지 않습니다")
-	ErrUnknownPet    = errors.New("등록되지 않은 반려동물입니다")
 )
 
 var validCategory = map[string]bool{

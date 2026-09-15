@@ -578,7 +578,7 @@ func TestRecommendedPrefersVerifiedWithImage(t *testing.T) {
 
 	svc, _, userID := testSvc(t, noImg, withImg, unknownStatus)
 
-	items, err := svc.Recommended(context.Background(), userID, nil, 10)
+	items, err := svc.Recommended(context.Background(), userID, 10)
 	if err != nil {
 		t.Fatalf("추천: %v", err)
 	}
@@ -662,7 +662,7 @@ func TestRecommendedExcludesShop(t *testing.T) {
 
 	svc, _, userID := testSvc(t, shop, spot)
 
-	items, err := svc.Recommended(context.Background(), userID, nil, 10)
+	items, err := svc.Recommended(context.Background(), userID, 10)
 	if err != nil {
 		t.Fatalf("추천: %v", err)
 	}
@@ -704,82 +704,30 @@ func TestHomepageIsReturnedOnlyWhenPresent(t *testing.T) {
 	}
 }
 
-func seedPetWithSize(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, name, size string) uuid.UUID {
-	t.Helper()
-	var id uuid.UUID
-	err := pool.QueryRow(context.Background(), `
-		INSERT INTO pet_profiles (user_id, name, species, size)
-		VALUES ($1, $2, 'dog', $3::size_limit) RETURNING id`, userID, name, size).Scan(&id)
+func TestRecommendedMixesCategoriesAndNeedsImage(t *testing.T) {
+	seeds := []seedPlace{
+		{name: "카페1", category: "cafe", lat: 33.50, lng: 126.50,
+			status: "allowed", area: "both", sizeLimit: "large", image: true},
+		{name: "카페2", category: "cafe", lat: 33.51, lng: 126.51,
+			status: "allowed", area: "both", sizeLimit: "large", image: true},
+		{name: "카페3", category: "cafe", lat: 33.52, lng: 126.52,
+			status: "allowed", area: "both", sizeLimit: "large", image: true},
+		{name: "오름", category: "attraction", lat: 33.53, lng: 126.53,
+			status: "allowed", area: "both", sizeLimit: "large", image: true},
+		{name: "사진없는카페", category: "cafe", lat: 33.54, lng: 126.54,
+			status: "allowed", area: "both", sizeLimit: "large"},
+	}
+
+	svc, _, userID := testSvc(t, seeds...)
+
+	items, err := svc.Recommended(context.Background(), userID, 10)
 	if err != nil {
-		t.Fatalf("반려동물 %q: %v", name, err)
+		t.Fatalf("추천: %v", err)
 	}
-	return id
-}
-
-// 못 들어가는 곳을 목록에서 빼지 않고 뒤로 민다.
-func TestRecommendedRanksDownPlacesThePetCannotEnter(t *testing.T) {
-	tiny := jeju("작은곳만", "cafe", 33.50, 126.50)
-	tiny.sizeLimit = "small"
-	open := jeju("제한없는곳", "cafe", 33.51, 126.51)
-	open.sizeLimit = "any"
-
-	svc, pool, userID := testSvc(t, tiny, open)
-	big := seedPetWithSize(t, pool, userID, "리트리버", "large")
-
-	// 비개인화: 랭킹 그대로 (이름순 아님, 시드 순서 기준으로 둘 다 나온다)
-	plain, err := svc.Recommended(context.Background(), userID, nil, 10)
-	if err != nil {
-		t.Fatalf("비개인화: %v", err)
+	if contains(names(items), "사진없는카페") {
+		t.Error("대표 사진이 없는 장소가 추천에 들어갔다")
 	}
-	if len(plain) != 2 {
-		t.Fatalf("비개인화 결과 %d건", len(plain))
-	}
-
-	// 개인화: 대형견이 못 들어가는 '작은곳만' 이 뒤로 밀린다
-	personal, err := svc.Recommended(context.Background(), userID, []uuid.UUID{big}, 10)
-	if err != nil {
-		t.Fatalf("개인화: %v", err)
-	}
-	if len(personal) != 2 {
-		t.Fatalf("개인화 결과 %d건, 걸러내지 말고 순위만 내려야 한다", len(personal))
-	}
-	if personal[0].Name != "제한없는곳" {
-		t.Errorf("1위 = %q, 대형견이 들어갈 수 있는 곳이 먼저여야 한다", personal[0].Name)
-	}
-	if personal[len(personal)-1].Name != "작은곳만" {
-		t.Errorf("마지막 = %q, 못 들어가는 곳이 뒤여야 한다", personal[len(personal)-1].Name)
-	}
-}
-
-// 여러 마리면 가장 큰 개가 기준이다.
-func TestRecommendedUsesLargestPet(t *testing.T) {
-	mid := jeju("중형까지", "cafe", 33.50, 126.50)
-	mid.sizeLimit = "medium"
-	open := jeju("제한없는곳", "cafe", 33.51, 126.51)
-	open.sizeLimit = "any"
-
-	svc, pool, userID := testSvc(t, mid, open)
-	small := seedPetWithSize(t, pool, userID, "말티즈", "small")
-	large := seedPetWithSize(t, pool, userID, "리트리버", "large")
-
-	// 말티즈만 데려가면 중형까지 가능한 곳도 통과 → 랭킹 그대로
-	only, _ := svc.Recommended(context.Background(), userID, []uuid.UUID{small}, 10)
-	if only[0].Name != "중형까지" {
-		t.Errorf("말티즈만: 1위 = %q, 랭킹 순서가 유지돼야 한다", only[0].Name)
-	}
-
-	// 둘 다 데려가면 대형 기준이라 '중형까지' 가 밀린다
-	both, _ := svc.Recommended(context.Background(), userID, []uuid.UUID{small, large}, 10)
-	if both[0].Name != "제한없는곳" {
-		t.Errorf("둘 다: 1위 = %q, 가장 큰 개 기준이어야 한다", both[0].Name)
-	}
-}
-
-func TestRecommendedRejectsOtherUsersPet(t *testing.T) {
-	svc, _, userID := testSvc(t, jeju("아무곳", "cafe", 33.5, 126.5))
-
-	_, err := svc.Recommended(context.Background(), userID, []uuid.UUID{uuid.New()}, 10)
-	if !errors.Is(err, ErrUnknownPet) {
-		t.Fatalf("err = %v, want ErrUnknownPet", err)
+	if len(items) < 2 || items[0].Category == items[1].Category {
+		t.Errorf("추천 = %v, 앞자리가 한 카테고리로 몰렸다", names(items))
 	}
 }
