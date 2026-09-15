@@ -1,4 +1,4 @@
-module github.com/daewon/tripaw-server
+module github.com/snap-crew/tripaw-server
 
 go 1.26.3
 

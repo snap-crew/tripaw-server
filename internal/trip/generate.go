@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/daewon/tripaw-server/internal/ai"
+	"github.com/snap-crew/tripaw-server/internal/ai"
 	"github.com/google/uuid"
 )
 

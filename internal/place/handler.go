@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/daewon/tripaw-server/internal/auth"
-	"github.com/daewon/tripaw-server/internal/httpx"
+	"github.com/snap-crew/tripaw-server/internal/auth"
+	"github.com/snap-crew/tripaw-server/internal/httpx"
 	"github.com/gin-gonic/gin"
 )
 

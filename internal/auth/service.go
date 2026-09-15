@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/daewon/tripaw-server/internal/oauth"
-	"github.com/daewon/tripaw-server/internal/token"
+	"github.com/snap-crew/tripaw-server/internal/oauth"
+	"github.com/snap-crew/tripaw-server/internal/token"
 	"github.com/google/uuid"
 )
 

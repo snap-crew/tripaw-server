@@ -3,12 +3,12 @@ package router
 import (
 	"testing"
 
-	"github.com/daewon/tripaw-server/internal/auth"
-	"github.com/daewon/tripaw-server/internal/pet"
-	"github.com/daewon/tripaw-server/internal/place"
-	"github.com/daewon/tripaw-server/internal/terms"
-	"github.com/daewon/tripaw-server/internal/token"
-	"github.com/daewon/tripaw-server/internal/trip"
+	"github.com/snap-crew/tripaw-server/internal/auth"
+	"github.com/snap-crew/tripaw-server/internal/pet"
+	"github.com/snap-crew/tripaw-server/internal/place"
+	"github.com/snap-crew/tripaw-server/internal/terms"
+	"github.com/snap-crew/tripaw-server/internal/token"
+	"github.com/snap-crew/tripaw-server/internal/trip"
 )
 
 func TestRoutesRegisterWithoutConflict(t *testing.T) {

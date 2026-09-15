@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/daewon/tripaw-server/internal/httpx"
-	"github.com/daewon/tripaw-server/internal/token"
+	"github.com/snap-crew/tripaw-server/internal/httpx"
+	"github.com/snap-crew/tripaw-server/internal/token"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
