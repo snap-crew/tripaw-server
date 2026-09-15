@@ -703,3 +703,31 @@ func TestHomepageIsReturnedOnlyWhenPresent(t *testing.T) {
 		t.Errorf("값이 없으면 응답에서 키가 빠져야 한다: %s", b)
 	}
 }
+
+func TestRecommendedMixesCategoriesAndNeedsImage(t *testing.T) {
+	seeds := []seedPlace{
+		{name: "카페1", category: "cafe", lat: 33.50, lng: 126.50,
+			status: "allowed", area: "both", sizeLimit: "large", image: true},
+		{name: "카페2", category: "cafe", lat: 33.51, lng: 126.51,
+			status: "allowed", area: "both", sizeLimit: "large", image: true},
+		{name: "카페3", category: "cafe", lat: 33.52, lng: 126.52,
+			status: "allowed", area: "both", sizeLimit: "large", image: true},
+		{name: "오름", category: "attraction", lat: 33.53, lng: 126.53,
+			status: "allowed", area: "both", sizeLimit: "large", image: true},
+		{name: "사진없는카페", category: "cafe", lat: 33.54, lng: 126.54,
+			status: "allowed", area: "both", sizeLimit: "large"},
+	}
+
+	svc, _, userID := testSvc(t, seeds...)
+
+	items, err := svc.Recommended(context.Background(), userID, 10)
+	if err != nil {
+		t.Fatalf("추천: %v", err)
+	}
+	if contains(names(items), "사진없는카페") {
+		t.Error("대표 사진이 없는 장소가 추천에 들어갔다")
+	}
+	if len(items) < 2 || items[0].Category == items[1].Category {
+		t.Errorf("추천 = %v, 앞자리가 한 카테고리로 몰렸다", names(items))
+	}
+}

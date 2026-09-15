@@ -221,21 +221,33 @@ func (r *Repository) Count(ctx context.Context, userID uuid.UUID, f *Filter) (in
 	return n, nil
 }
 
+// 홈탭 추천 기준. 개인화하지 않는다.
+//
+// 뽑는 대상 — 동반 가능하고(status=allowed), 정책 확인이 끝났고(needs_verification=false),
+// 대표 사진이 있는 곳. 사진 없이는 카드가 비어 보인다.
+// 카테고리는 화이트리스트다. 숙소·쇼핑은 홈탭에서 찾는 것이 아니고,
+// 동물병원(vet)과 애견미용실(other)은 여행지가 아니다.
+//
+// 순위 — 조회수·평점 같은 인기 데이터가 아직 없어서 다음 순서로 대신한다.
+//  1. 카테고리 라운드로빈. 그냥 줄세우면 10칸이 전부 오름으로 찬다
+//  2. 동반 정책 신뢰도 순 (관광공사 0.90 > 비짓제주 태그 0.75 > 소개글 마이닝 0.70)
+//  3. 사진 수, id 순
 func (r *Repository) Recommended(ctx context.Context, userID uuid.UUID, limit int) ([]Place, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT `+placeColumns+`, NULL::float8 AS distance`+placeFrom+`
 		WHERE v.status = 'allowed' AND NOT v.needs_verification
-		  AND v.category <> 'shop'
-		ORDER BY (v.image_url IS NOT NULL) DESC,
-		         v.image_count DESC,
-		         v.confidence DESC NULLS LAST,
-		         v.id
+		  AND v.category IN ('attraction', 'cafe', 'restaurant', 'culture', 'leisure', 'park', 'beach')
+		  AND v.image_url IS NOT NULL
+		ORDER BY row_number() OVER (PARTITION BY v.category ORDER BY `+recommendRank+`),
+		         `+recommendRank+`
 		LIMIT $2`, userID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("추천 장소: %w", err)
 	}
 	return collectPlaces(rows)
 }
+
+const recommendRank = `v.confidence DESC NULLS LAST, v.image_count DESC, v.id`
 
 func (r *Repository) FindByID(ctx context.Context, userID uuid.UUID, placeID int64) (*Place, error) {
 	rows, err := r.pool.Query(ctx,
