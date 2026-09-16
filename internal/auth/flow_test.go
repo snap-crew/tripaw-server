@@ -18,6 +18,7 @@ import (
 	"github.com/snap-crew/tripaw-server/internal/oauth"
 	"github.com/snap-crew/tripaw-server/internal/token"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -84,7 +85,7 @@ func newFlowEnv(t *testing.T, appleSub, appleEmail string) *flowEnv {
 	appleClient.SetVerifier(appleStubVerifier{sub: appleSub, email: appleEmail})
 
 	tokens := token.NewManager(flowSecret, time.Hour, 720*time.Hour)
-	handler := NewHandler(NewService(repo, tokens, appleClient, kakaoClient))
+	handler := NewHandler(NewService(repo, tokens, appleClient, kakaoClient), true)
 
 	r := gin.New()
 	api := r.Group("/api")
@@ -370,5 +371,58 @@ func TestProtectedRoutesRequireToken(t *testing.T) {
 				t.Errorf("status = %d, want 401", w.Code)
 			}
 		})
+	}
+}
+
+func TestTestLoginNeedsNoInputAndReusesOneAccount(t *testing.T) {
+	env := newFlowEnv(t, "apple-flow", "")
+
+	// 심사위원은 버튼만 누른다. 본문이 없어도 200 이어야 한다.
+	w := env.do(t, http.MethodPost, "/api/auth/test", "", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("테스트 로그인 status = %d (body: %s)", w.Code, w.Body)
+	}
+
+	first := decodeTokens(t, w)
+	if first.AccessToken == "" || first.RefreshToken == "" {
+		t.Fatal("토큰이 비어 있다")
+	}
+
+	second := decodeTokens(t, env.do(t, http.MethodPost, "/api/auth/test", "", nil))
+	if first.User.ID != second.User.ID {
+		t.Errorf("두 번 눌렀는데 계정이 새로 생김: %s → %s", first.User.ID, second.User.ID)
+	}
+
+	// 닉네임은 만들 때 정한 값이 그대로 남아야 한다. 앱에서 바꾼 이름을
+	// 재로그인이 되돌리면 안 된다.
+	userID, err := uuid.Parse(second.User.ID)
+	if err != nil {
+		t.Fatalf("사용자 ID 파싱: %v", err)
+	}
+	if _, err := env.repo.UpdateProfile(context.Background(), userID,
+		strptr("심사위원 A"), nil, false); err != nil {
+		t.Fatalf("이름 변경: %v", err)
+	}
+	third := decodeTokens(t, env.do(t, http.MethodPost, "/api/auth/test", "", nil))
+	if third.User.Nickname == nil || *third.User.Nickname != "심사위원 A" {
+		t.Errorf("재로그인이 이름을 덮어썼다: %v", third.User.Nickname)
+	}
+
+	// 발급된 토큰으로 보호 API 가 열려야 한다.
+	me := env.do(t, http.MethodGet, "/api/auth/me", second.AccessToken, nil)
+	if me.Code != http.StatusOK {
+		t.Errorf("/auth/me status = %d (body: %s)", me.Code, me.Body)
+	}
+}
+
+func TestTestLoginRouteIsOffWhenDisabled(t *testing.T) {
+	env := newFlowEnv(t, "apple-flow", "")
+	env.engine = gin.New()
+	api := env.engine.Group("/api")
+	NewHandler(NewService(env.repo, token.NewManager(flowSecret, time.Hour, 720*time.Hour), nil, nil),
+		false).RegisterPublic(api)
+
+	if w := env.do(t, http.MethodPost, "/api/auth/test", "", nil); w.Code != http.StatusNotFound {
+		t.Errorf("꺼두었는데 status = %d, 404 여야 한다", w.Code)
 	}
 }
