@@ -215,6 +215,19 @@ func TestGenerateFillsEveryDayFromCandidates(t *testing.T) {
 	}
 }
 
+func TestCandidatesSkipNonTravelPlaces(t *testing.T) {
+	_, pool, _ := testSvc(t)
+	seedCandidates(t, pool, "attraction", "vet", "pharmacy", "shop", "stay", "other")
+
+	cands, err := NewRepository(pool).Candidates(context.Background(), "small", candidateLimit)
+	if err != nil {
+		t.Fatalf("Candidates: %v", err)
+	}
+	if len(cands) != 1 || cands[0].Category != "attraction" {
+		t.Errorf("후보 = %+v, 관광지 1곳만 나와야 한다", cands)
+	}
+}
+
 func TestGenerateRejectsTripThatAlreadyHasStops(t *testing.T) {
 	svc, pool, userID := testSvc(t)
 	seedCandidates(t, pool, "attraction", "cafe")

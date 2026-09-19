@@ -417,7 +417,7 @@ func (r *Repository) Candidates(ctx context.Context, size string, limit int) ([]
 			       ) AS rn
 			FROM place_view v
 			WHERE v.status IN ('allowed', 'partial')
-			  AND v.category NOT IN ('shop', 'stay')
+			  AND v.category IN ('attraction', 'culture', 'leisure', 'park', 'beach', 'restaurant', 'cafe')
 			  AND v.size_limit >= $1::size_limit
 		)
 		SELECT id, name, category, road_address, lat, lng FROM ranked
