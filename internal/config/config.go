@@ -19,6 +19,9 @@ type Config struct {
 	GeminiKey    string
 	GeminiModel  string
 
+	// 심사위원용 테스트 계정 로그인(POST /api/auth/test) 을 열지 여부.
+	TestLogin bool
+
 	JWT   JWTConfig
 	Apple AppleConfig
 	Kakao KakaoConfig
@@ -86,7 +89,8 @@ func Load() (*Config, error) {
 			PrivateKey:  os.Getenv("APPLE_PRIVATE_KEY"),
 			RedirectURI: os.Getenv("APPLE_REDIRECT_URI"),
 		},
-		Kakao: KakaoConfig{AppID: kakaoAppID},
+		Kakao:     KakaoConfig{AppID: kakaoAppID},
+		TestLogin: getEnv("TEST_LOGIN_ENABLED", "false") == "true",
 	}
 
 	if c.DatabaseURL == "" {

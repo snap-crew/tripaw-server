@@ -14,7 +14,7 @@ import (
 func TestRoutesRegisterWithoutConflict(t *testing.T) {
 	tokens := token.NewManager("test-secret-that-is-long-enough-32b", 3600, 3600)
 	r := New(tokens,
-		auth.NewHandler(auth.NewService(auth.NewRepository(nil), tokens, nil, nil)),
+		auth.NewHandler(auth.NewService(auth.NewRepository(nil), tokens, nil, nil), true),
 		terms.NewHandler(terms.NewService(terms.NewRepository(nil))),
 		pet.NewHandler(pet.NewService(pet.NewRepository(nil))),
 		place.NewHandler(place.NewService(place.NewRepository(nil))),

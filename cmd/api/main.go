@@ -82,7 +82,7 @@ func run() error {
 	}
 
 	handler := router.New(tokens,
-		auth.NewHandler(authService),
+		auth.NewHandler(authService, cfg.TestLogin),
 		terms.NewHandler(terms.NewService(terms.NewRepository(pool))),
 		image.NewHandler(image.NewService(image.NewRepository(pool))),
 		pet.NewHandler(pet.NewService(pet.NewRepository(pool))),

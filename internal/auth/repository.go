@@ -43,6 +43,26 @@ func (r *Repository) UpsertOnLogin(ctx context.Context, u *User) (*User, error) 
 	return out, nil
 }
 
+// UpsertTestLogin 은 테스트 계정 한 행을 만들고 로그인 시각만 갱신한다.
+//
+// UpsertOnLogin 과 달리 닉네임을 다시 쓰지 않는다. 공급자가 매번 주는 값이 아니라
+// 우리가 정한 고정값이라 만들 때 한 번이면 된다.
+func (r *Repository) UpsertTestLogin(ctx context.Context, sub, nickname string) (*User, error) {
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO users (provider, provider_sub, nickname, last_login_at)
+		VALUES ('test', $1, $2, now())
+		ON CONFLICT (provider, provider_sub) DO UPDATE SET
+			last_login_at = now(),
+			updated_at    = now()
+		RETURNING `+userColumns, sub, nickname)
+
+	out, err := scanUser(row)
+	if err != nil {
+		return nil, fmt.Errorf("테스트 계정 upsert: %w", err)
+	}
+	return out, nil
+}
+
 func (r *Repository) FindUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	row := r.pool.QueryRow(ctx, `SELECT `+userColumns+` FROM users WHERE id = $1`, id)
 

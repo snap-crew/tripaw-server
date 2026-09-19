@@ -66,6 +66,23 @@ func (s *Service) LoginKakao(ctx context.Context, accessToken string) (*User, *t
 	})
 }
 
+// LoginTest 는 확인 절차 없이 고정된 테스트 계정으로 로그인시킨다.
+//
+// 심사위원이 소셜 로그인 없이 앱을 보게 하려는 것이라 입력값을 받지 않는다.
+// 열어둘지 말지는 라우트 등록 단계(TEST_LOGIN_ENABLED)에서 정한다.
+func (s *Service) LoginTest(ctx context.Context) (*User, *token.Pair, error) {
+	user, err := s.repo.UpsertTestLogin(ctx, testProviderSub, testNickname)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pair, err := s.issue(ctx, user.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return user, pair, nil
+}
+
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (*token.Pair, error) {
 	claimedUserID, err := s.tokens.ValidateRefresh(refreshToken)
 	if err != nil {

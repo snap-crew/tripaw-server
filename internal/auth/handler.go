@@ -12,16 +12,34 @@ import (
 
 type Handler struct {
 	svc *Service
+
+	// 심사 기간에만 켠다. 끄면 라우트 자체가 붙지 않는다.
+	testLogin bool
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, testLogin bool) *Handler {
+	return &Handler{svc: svc, testLogin: testLogin}
 }
 
 func (h *Handler) RegisterPublic(rg *gin.RouterGroup) {
 	rg.POST("/auth/apple", h.loginApple)
 	rg.POST("/auth/kakao", h.loginKakao)
 	rg.POST("/auth/refresh", h.refresh)
+
+	if h.testLogin {
+		rg.POST("/auth/test", h.loginTest)
+	}
+}
+
+// 입력값이 없다. 심사위원이 버튼만 눌러 들어오게 하는 것이 목적이다.
+func (h *Handler) loginTest(c *gin.Context) {
+	user, pair, err := h.svc.LoginTest(c.Request.Context())
+	if err != nil {
+		writeAuthError(c, err)
+		return
+	}
+
+	h.writeLoginResponse(c, user, pair)
 }
 
 func (h *Handler) RegisterProtected(rg *gin.RouterGroup) {

@@ -154,9 +154,6 @@ func (s *Service) Update(ctx context.Context, userID, petID uuid.UUID, req *Upda
 			return nil, err
 		}
 
-		if traits == nil {
-			traits = []string{}
-		}
 		u.Traits = traits
 	}
 	if req.BreedID != nil {
@@ -214,7 +211,7 @@ func validateName(raw string) (string, error) {
 
 func validateTraits(traits []string) ([]string, error) {
 	if len(traits) == 0 {
-		return nil, nil
+		return []string{}, nil
 	}
 	if len(traits) > 3 {
 		return nil, invalid("invalid_traits", "성향은 최대 3개까지 선택할 수 있습니다")

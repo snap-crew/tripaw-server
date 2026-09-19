@@ -14,6 +14,7 @@ Base URL: `https://api.trippaw.app` (prod) / `http://localhost:8080` (local)
 |--------|------|:--------:|------|
 | POST | `/api/auth/kakao` | — | 카카오 로그인 |
 | POST | `/api/auth/apple` | — | 애플 로그인 |
+| POST | `/api/auth/test` | — | 테스트 계정 로그인(심사용, 스위치로 켤 때만) |
 | POST | `/api/auth/refresh` | — | 토큰 재발급(회전) |
 | GET | `/api/auth/me` | — | 내 계정 조회 |
 | PATCH | `/api/users/me` | 6 | 내 계정 수정(이름·프로필 이미지) |
@@ -202,6 +203,7 @@ sequenceDiagram
 |--------|------|:----:|------|
 | POST | `/api/auth/kakao` | — | 카카오 로그인 |
 | POST | `/api/auth/apple` | — | 애플 로그인 |
+| POST | `/api/auth/test` | — | 테스트 계정 로그인(심사용) |
 | POST | `/api/auth/refresh` | — | 토큰 재발급 |
 | GET | `/api/auth/me` | ✅ | 내 계정 조회 |
 | PATCH | `/api/users/me` | ✅ | 내 계정 수정 |
@@ -278,6 +280,24 @@ sequenceDiagram
 |------|------|---------|
 | `invalid_request` | 400 | `code` 누락 |
 | `provider_rejected` | 401 | 애플이 code를 거부(만료·재사용) |
+
+---
+
+### POST /api/auth/test
+
+심사위원이 소셜 로그인 없이 앱을 둘러볼 수 있게 하는 로그인이다. **요청 본문이 없다.** 클라이언트는 "테스트 계정으로 시작" 버튼에서 이 엔드포인트만 부르고, 응답은 카카오·애플 로그인과 같은 형태이므로 이후 처리는 그대로 재사용하면 된다.
+
+```
+POST /api/auth/test
+```
+
+응답은 `POST /api/auth/kakao`와 동일(`provider`가 `"test"`).
+
+> **계정은 하나다.** 몇 번을 눌러도, 누가 눌러도 같은 사용자로 들어온다. 심사위원 여러 명이 동시에 쓰면 서로가 만든 여행과 저장한 장소가 함께 보인다.
+>
+> **서버에서 켜야 열린다.** `TEST_LOGIN_ENABLED=true` 가 아니면 라우트를 등록하지 않으므로 404 다. 확인 절차 없이 계정에 들어오는 경로라 심사 기간에만 켜고 끝나면 끈다.
+>
+> 가입 직후와 같은 상태로 시작하므로 약관 동의부터 밟는다. 응답의 `nextStep` 이 `terms` 다.
 
 ---
 

@@ -14,6 +14,19 @@ const imagePathPrefix = "/api/images/"
 const (
 	ProviderApple Provider = "apple"
 	ProviderKakao Provider = "kakao"
+
+	// 심사위원용. 소셜 로그인 없이 버튼 하나로 들어오는 계정이다.
+	ProviderTest Provider = "test"
+)
+
+// 테스트 계정은 한 행을 공유한다. provider_sub 가 고정이라 몇 번을 눌러도
+// 같은 사용자로 들어오고, 심사위원끼리 같은 데이터를 본다.
+//
+// 닉네임은 계정을 만들 때 한 번만 넣는다. 공급자가 주는 값이 아니라 우리가 정한
+// 고정값이라 로그인마다 다시 쓸 이유가 없다.
+const (
+	testProviderSub = "judge"
+	testNickname    = "테스트 계정"
 )
 
 type User struct {
