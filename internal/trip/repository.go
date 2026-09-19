@@ -145,8 +145,10 @@ func (r *Repository) LoadDays(ctx context.Context, t *Trip) error {
 
 	rows, err := r.pool.Query(ctx, `
 		SELECT s.day_no, s.seq, s.place_id, p.name, p.category::text,
-		       ST_Y(p.geom::geometry), ST_X(p.geom::geometry)
+		       ST_Y(p.geom::geometry), ST_X(p.geom::geometry),
+		       v.image_url, v.image_thumb_url, v.image_attribution
 		FROM route_stops s JOIN places p ON p.id = s.place_id
+		LEFT JOIN place_view v ON v.id = s.place_id
 		WHERE s.route_id = $1
 		ORDER BY s.day_no, s.seq`, t.ID)
 	if err != nil {
@@ -157,7 +159,8 @@ func (r *Repository) LoadDays(ctx context.Context, t *Trip) error {
 	for rows.Next() {
 		var dayNo int
 		var s Stop
-		if err := rows.Scan(&dayNo, &s.Seq, &s.PlaceID, &s.Name, &s.Category, &s.Lat, &s.Lng); err != nil {
+		if err := rows.Scan(&dayNo, &s.Seq, &s.PlaceID, &s.Name, &s.Category, &s.Lat, &s.Lng,
+			&s.ImageURL, &s.ImageThumbURL, &s.ImageAttribution); err != nil {
 			return fmt.Errorf("일정 스캔: %w", err)
 		}
 

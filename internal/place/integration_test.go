@@ -120,8 +120,8 @@ func seed(t *testing.T, pool *pgxpool.Pool, i int, s seedPlace) {
 
 	if s.image {
 		_, err = pool.Exec(ctx, `
-			INSERT INTO place_images (place_id, document_id, url, role, sort_order)
-			VALUES ($1, $2, $3, 'main', 0)`,
+			INSERT INTO place_images (place_id, document_id, url, role, sort_order, attribution)
+			VALUES ($1, $2, $3, 'main', 0, '테스트 출처')`,
 			placeID, docID, "https://cdn.test/"+s.name+".jpg")
 		if err != nil {
 			t.Fatalf("place_images: %v", err)
@@ -461,6 +461,20 @@ func TestGetReturnsDetailWithImages(t *testing.T) {
 			t.Errorf("%q 문구가 없다 (조건: %v)", want, conds)
 		}
 	}
+	// DB 에 채운 값은 응답으로 나가야 한다. 사진 출처는 공공누리·CC 의 사용 조건이다.
+	res := newPlaceDetail(p, images)
+	if res.ImageAttribution == nil || *res.ImageAttribution != "테스트 출처" {
+		t.Errorf("목록용 대표 사진 출처 = %v", res.ImageAttribution)
+	}
+	if len(res.ImageDetails) != 1 || res.ImageDetails[0].Attribution == nil {
+		t.Errorf("상세 사진 출처가 빠졌다: %+v", res.ImageDetails)
+	}
+	if res.PetPolicy == nil || res.PetPolicy.Evidence == nil || *res.PetPolicy.Evidence != "테스트 근거" {
+		t.Errorf("동반 정책 근거가 빠졌다: %+v", res.PetPolicy)
+	}
+	if res.PetStatus != "allowed" {
+		t.Errorf("petStatus = %q", res.PetStatus)
+	}
 }
 
 func TestGetMissingPlace(t *testing.T) {
@@ -517,6 +531,46 @@ func TestSaveMissingPlaceIsNotFound(t *testing.T) {
 
 	if _, err := svc.Save(context.Background(), userID, 999999); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("err = %v, 기대 ErrNotFound", err)
+	}
+}
+
+func TestCategoryFilterMatchesExtraCategories(t *testing.T) {
+	svc, pool, userID := testSvc(t,
+		jeju("한림공원", "attraction", 33.39, 126.24),
+		jeju("성산일출봉", "attraction", 33.46, 126.94),
+	)
+	ctx := context.Background()
+	parkID := placeIDByName(t, pool, "한림공원")
+	if _, err := pool.Exec(ctx,
+		`UPDATE places SET extra_categories = '{park}' WHERE id = $1`, parkID); err != nil {
+		t.Fatalf("추가 분류: %v", err)
+	}
+
+	parks, _, _, err := svc.List(ctx, userID, &Filter{Category: "park"}, "", nil, nil, "", 50)
+	if err != nil {
+		t.Fatalf("공원 필터: %v", err)
+	}
+	if got := names(parks); len(got) != 1 || got[0] != "한림공원" {
+		t.Errorf("공원 필터 = %v, 한림공원만 나와야 한다", got)
+	}
+
+	sights, _, _, err := svc.List(ctx, userID, &Filter{Category: "attraction"}, "", nil, nil, "", 50)
+	if err != nil {
+		t.Fatalf("관광지 필터: %v", err)
+	}
+	if got := names(sights); len(got) != 2 {
+		t.Errorf("관광지 필터 = %v, 대표 분류로 두 곳 모두 나와야 한다", got)
+	}
+
+	if _, err := svc.Save(ctx, userID, parkID); err != nil {
+		t.Fatalf("저장: %v", err)
+	}
+	saved, _, err := svc.ListSaved(ctx, userID, "park", "", 20)
+	if err != nil {
+		t.Fatalf("저장 목록 공원 필터: %v", err)
+	}
+	if len(saved) != 1 {
+		t.Errorf("저장한 공원 %d건, 기대 1건", len(saved))
 	}
 }
 

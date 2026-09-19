@@ -31,14 +31,17 @@ type Marker struct {
 }
 
 type Place struct {
-	ID          int64
-	Name        string
-	Category    string
-	RoadAddress *string
-	Tel         *string
-	Lat, Lng    float64
-	ImageURL    *string
-	ImageCount  int
+	ID               int64
+	Name             string
+	Category         string
+	RoadAddress      *string
+	Tel              *string
+	Lat, Lng         float64
+	ImageURL         *string
+	ImageThumbURL    *string
+	ImageAttribution *string
+	ImageCount       int
+	ExtraCategories  []string
 
 	Status              string
 	Area                *string
@@ -49,17 +52,39 @@ type Place struct {
 	MuzzleDangerousOnly *bool
 	CrateRequired       *bool
 	WasteBagRequired    *bool
+	VaccinationRequired *bool
 	ExtraFeeKrw         *int
 	ParkingAvailable    *bool
 	NeedsVerification   bool
 
-	OpenTime    *string
-	HomepageURL *string
+	// 반려동물 정책을 판단한 원문 문장과 그 출처·기준일.
+	PolicyEvidence *string
+	PolicySource   *string
+	PolicyDatedAt  *string
+
+	OpenTime        *string
+	RestDate        *string
+	HoursKind       *string
+	OpenDays        []int16
+	OpenMin         *int16
+	CloseMin        *int16
+	CrossesMidnight bool
+	ParkingNote     *string
+	MenuSummary     *string
+	HomepageURL     *string
 
 	IsSaved  bool
 	Distance *float64
 
 	sortKey any
+}
+
+// Image 는 상세 화면에서 넘겨 보는 사진 한 장이다. 출처 표시가 사용 조건인 사진이
+// 많으므로(공공누리, CC) 출처를 같이 내보낸다.
+type Image struct {
+	URL         string
+	ThumbURL    *string
+	Attribution *string
 }
 
 type SavedPlace struct {

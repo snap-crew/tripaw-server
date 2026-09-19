@@ -27,10 +27,21 @@ type PlaceResponse struct {
 	Lat         float64 `json:"lat"`
 	Lng         float64 `json:"lng"`
 
-	ImageURL   *string `json:"imageUrl"`
-	ImageCount int     `json:"imageCount"`
-	OpenTime   *string `json:"openTime,omitempty"`
+	ImageURL         *string `json:"imageUrl"`
+	ImageThumbURL    *string `json:"imageThumbUrl"`
+	ImageAttribution *string `json:"imageAttribution"`
+	ImageCount       int     `json:"imageCount"`
 
+	// 대표 분류 외에 필터에 걸리는 분류 (예: 관광지인 한림공원의 park).
+	ExtraCategories []string `json:"extraCategories"`
+
+	OpenTime    *string `json:"openTime,omitempty"`
+	RestDate    *string `json:"restDate,omitempty"`
+	ParkingNote *string `json:"parkingNote,omitempty"`
+	MenuSummary *string `json:"menuSummary,omitempty"`
+
+	// allowed = 동반 가능, partial = 일부 구역·조건부 동반.
+	PetStatus     string   `json:"petStatus"`
 	PetConditions []string `json:"petConditions"`
 
 	NeedsVerification bool `json:"needsVerification"`
@@ -42,7 +53,35 @@ type PlaceResponse struct {
 
 type PlaceDetailResponse struct {
 	PlaceResponse
-	Images []string `json:"images"`
+	Images       []string        `json:"images"`
+	ImageDetails []ImageResponse `json:"imageDetails"`
+	PetPolicy    *PetPolicy      `json:"petPolicy"`
+	Hours        *HoursResponse  `json:"hours"`
+}
+
+type ImageResponse struct {
+	URL         string  `json:"url"`
+	ThumbURL    *string `json:"thumbUrl"`
+	Attribution *string `json:"attribution"`
+}
+
+// PetPolicy 는 동반 조건을 판단한 근거다. 조건 문구(petConditions)가 원문의 어느
+// 문장에서 나왔는지, 언제 어느 출처 기준인지 사용자가 확인할 수 있게 한다.
+type PetPolicy struct {
+	Evidence *string `json:"evidence"`
+	Source   *string `json:"source"`
+	DatedAt  *string `json:"datedAt"`
+}
+
+// HoursResponse 는 openTime 문자열을 구조화한 값이다.
+// kind: business_hours | checkin_checkout | always_open | varies | unknown
+// openDays 는 1=월 … 7=일(ISO 8601), openMin·closeMin 은 자정부터의 분이다.
+type HoursResponse struct {
+	Kind            string  `json:"kind"`
+	OpenDays        []int16 `json:"openDays"`
+	OpenMin         *int16  `json:"openMin"`
+	CloseMin        *int16  `json:"closeMin"`
+	CrossesMidnight bool    `json:"crossesMidnight"`
 }
 
 type ListResponse struct {
@@ -105,13 +144,61 @@ func newPlaceResponse(p *Place) PlaceResponse {
 		Lat:               p.Lat,
 		Lng:               p.Lng,
 		ImageURL:          p.ImageURL,
+		ImageThumbURL:     p.ImageThumbURL,
+		ImageAttribution:  p.ImageAttribution,
 		ImageCount:        p.ImageCount,
+		ExtraCategories:   append([]string{}, p.ExtraCategories...),
 		OpenTime:          p.OpenTime,
+		RestDate:          p.RestDate,
+		ParkingNote:       p.ParkingNote,
+		MenuSummary:       p.MenuSummary,
+		PetStatus:         p.Status,
 		PetConditions:     petConditions(p),
 		NeedsVerification: p.NeedsVerification,
 		IsSaved:           p.IsSaved,
 		DistanceM:         p.Distance,
 	}
+}
+
+func newPlaceDetail(p *Place, images []Image) PlaceDetailResponse {
+	out := PlaceDetailResponse{
+		PlaceResponse: newPlaceResponse(p),
+		Images:        make([]string, 0, len(images)),
+		ImageDetails:  make([]ImageResponse, 0, len(images)),
+	}
+	for _, img := range images {
+		out.Images = append(out.Images, img.URL)
+		out.ImageDetails = append(out.ImageDetails,
+			ImageResponse{URL: img.URL, ThumbURL: img.ThumbURL, Attribution: img.Attribution})
+	}
+	if p.PolicyEvidence != nil || p.PolicySource != nil {
+		out.PetPolicy = &PetPolicy{
+			Evidence: p.PolicyEvidence, Source: sourceLabel(p.PolicySource), DatedAt: p.PolicyDatedAt,
+		}
+	}
+	if p.HoursKind != nil {
+		out.Hours = &HoursResponse{
+			Kind: *p.HoursKind, OpenDays: append([]int16{}, p.OpenDays...),
+			OpenMin: p.OpenMin, CloseMin: p.CloseMin, CrossesMidnight: p.CrossesMidnight,
+		}
+	}
+	return out
+}
+
+// sourceLabel 은 내부 출처 코드를 화면에 보여 줄 기관명으로 바꾼다.
+func sourceLabel(src *string) *string {
+	if src == nil {
+		return nil
+	}
+	names := map[string]string{
+		"kto_pet": "한국관광공사", "kto_common": "한국관광공사", "kto_related": "한국관광공사",
+		"kcisa_csv": "한국문화정보원", "visitjeju_api": "비짓제주", "visitjeju_stay": "비짓제주",
+		"kakao_local": "카카오",
+	}
+	if n, ok := names[*src]; ok {
+		return &n
+	}
+	return src
 }
 
 func newPlaceList(items []Place) []PlaceResponse {
@@ -164,6 +251,9 @@ func petConditions(p *Place) []string {
 	}
 	if p.WasteBagRequired != nil && *p.WasteBagRequired {
 		out = append(out, "배변봉투 지참")
+	}
+	if p.VaccinationRequired != nil && *p.VaccinationRequired {
+		out = append(out, "예방접종 필수")
 	}
 	if p.ExtraFeeKrw != nil {
 		if *p.ExtraFeeKrw == 0 {

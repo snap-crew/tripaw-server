@@ -22,11 +22,15 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 }
 
 const placeColumns = `v.id, v.name, v.category, v.road_address, v.tel, v.lat, v.lng,
-	v.image_url, v.image_count,
+	v.image_url, v.image_thumb_url, v.image_attribution, v.image_count,
+	pl.extra_categories::text[],
 	v.status, v.area, v.size_limit, v.max_weight_kg,
 	v.leash_required, v.muzzle_required, v.muzzle_dangerous_only,
-	v.crate_required, v.waste_bag_required,
-	v.extra_fee_krw, v.parking_available, v.needs_verification, v.open_time,
+	v.crate_required, v.waste_bag_required, v.vaccination_required,
+	v.extra_fee_krw, v.parking_available, v.needs_verification,
+	v.evidence_text, v.label_source::text, v.label_dated_at::text,
+	v.open_time, v.rest_date, v.hours_kind::text, v.open_days, v.open_min, v.close_min,
+	COALESCE(v.crosses_midnight, false), v.parking_note, v.menu_summary,
 	pl.homepage_url,
 	(s.user_id IS NOT NULL) AS is_saved`
 
@@ -43,7 +47,7 @@ func whereFilters(f *Filter, args *[]any) string {
 	}
 
 	if f.Category != "" {
-		conds = append(conds, "v.category = "+add(f.Category)+"::place_category")
+		conds = append(conds, categoryCond(add(f.Category)))
 	}
 	if f.MaxWeightKg != nil {
 		conds = append(conds,
@@ -267,24 +271,31 @@ func (r *Repository) FindByID(ctx context.Context, userID uuid.UUID, placeID int
 	return scanPlace(rows)
 }
 
-func (r *Repository) Images(ctx context.Context, placeID int64) ([]string, error) {
+func (r *Repository) Images(ctx context.Context, placeID int64) ([]Image, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT url FROM place_images WHERE place_id = $1
+		SELECT url, thumb_url, attribution FROM place_images WHERE place_id = $1
 		ORDER BY (role <> 'main'), sort_order, id`, placeID)
 	if err != nil {
 		return nil, fmt.Errorf("장소 사진: %w", err)
 	}
 	defer rows.Close()
 
-	var out []string
+	var out []Image
 	for rows.Next() {
-		var u string
-		if err := rows.Scan(&u); err != nil {
+		var img Image
+		if err := rows.Scan(&img.URL, &img.ThumbURL, &img.Attribution); err != nil {
 			return nil, fmt.Errorf("사진 스캔: %w", err)
 		}
-		out = append(out, u)
+		out = append(out, img)
 	}
 	return out, rows.Err()
+}
+
+// categoryCond 는 대표 분류(category)나 추가 분류(places.extra_categories)가
+// 일치하는 장소를 고른다. 한림공원처럼 관광지이면서 공원인 곳이 두 필터에 모두 나온다.
+func categoryCond(ph string) string {
+	return "(v.category = " + ph + "::place_category OR EXISTS (SELECT 1 FROM places p" +
+		" WHERE p.id = v.id AND " + ph + "::place_category = ANY(p.extra_categories)))"
 }
 
 func (r *Repository) ListSaved(
@@ -294,7 +305,7 @@ func (r *Repository) ListSaved(
 	where := ""
 	if category != "" {
 		args = append(args, category)
-		where += fmt.Sprintf(" AND v.category = $%d::place_category", len(args))
+		where += " AND " + categoryCond(fmt.Sprintf("$%d", len(args)))
 	}
 	if cur != nil {
 		args = append(args, cur.Str, cur.ID)
@@ -378,11 +389,15 @@ func (r *Repository) Unsave(ctx context.Context, userID uuid.UUID, placeID int64
 func placeScanDest(p *Place) []any {
 	return []any{
 		&p.ID, &p.Name, &p.Category, &p.RoadAddress, &p.Tel, &p.Lat, &p.Lng,
-		&p.ImageURL, &p.ImageCount,
+		&p.ImageURL, &p.ImageThumbURL, &p.ImageAttribution, &p.ImageCount,
+		&p.ExtraCategories,
 		&p.Status, &p.Area, &p.SizeLimit, &p.MaxWeightKg,
 		&p.LeashRequired, &p.MuzzleRequired, &p.MuzzleDangerousOnly,
-		&p.CrateRequired, &p.WasteBagRequired,
-		&p.ExtraFeeKrw, &p.ParkingAvailable, &p.NeedsVerification, &p.OpenTime,
+		&p.CrateRequired, &p.WasteBagRequired, &p.VaccinationRequired,
+		&p.ExtraFeeKrw, &p.ParkingAvailable, &p.NeedsVerification,
+		&p.PolicyEvidence, &p.PolicySource, &p.PolicyDatedAt,
+		&p.OpenTime, &p.RestDate, &p.HoursKind, &p.OpenDays, &p.OpenMin, &p.CloseMin,
+		&p.CrossesMidnight, &p.ParkingNote, &p.MenuSummary,
 		&p.HomepageURL,
 		&p.IsSaved,
 	}

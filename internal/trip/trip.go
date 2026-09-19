@@ -38,6 +38,8 @@ type Stop struct {
 	Name     string
 	Category string
 	Lat, Lng float64
+
+	ImageURL, ImageThumbURL, ImageAttribution *string
 }
 
 type Day struct {

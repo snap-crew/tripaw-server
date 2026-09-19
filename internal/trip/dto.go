@@ -50,6 +50,10 @@ type StopResponse struct {
 	Category string  `json:"category"`
 	Lat      float64 `json:"lat"`
 	Lng      float64 `json:"lng"`
+
+	ImageURL         *string `json:"imageUrl"`
+	ImageThumbURL    *string `json:"imageThumbUrl"`
+	ImageAttribution *string `json:"imageAttribution"`
 }
 
 type DayResponse struct {
@@ -124,6 +128,7 @@ func newTripResponse(t *Trip, today time.Time) TripResponse {
 			stops = append(stops, StopResponse{
 				Seq: s.Seq, Kind: "place", PlaceID: s.PlaceID,
 				Name: s.Name, Category: s.Category, Lat: s.Lat, Lng: s.Lng,
+				ImageURL: s.ImageURL, ImageThumbURL: s.ImageThumbURL, ImageAttribution: s.ImageAttribution,
 			})
 		}
 		days = append(days, DayResponse{

@@ -146,11 +146,7 @@ func (h *Handler) get(c *gin.Context) {
 		return
 	}
 
-	httpx.OK(c, http.StatusOK, PlaceDetailResponse{
-		PlaceResponse: newPlaceResponse(p),
-
-		Images: append([]string{}, images...),
-	})
+	httpx.OK(c, http.StatusOK, newPlaceDetail(p, images))
 }
 
 func (h *Handler) listSaved(c *gin.Context) {

@@ -65,13 +65,13 @@ func (s *Service) Recommended(ctx context.Context, userID uuid.UUID, limit int) 
 	return s.repo.Recommended(ctx, userID, clampLimit(limit))
 }
 
-func (s *Service) Get(ctx context.Context, userID uuid.UUID, placeID int64) (*Place, []string, error) {
+func (s *Service) Get(ctx context.Context, userID uuid.UUID, placeID int64) (*Place, []Image, error) {
 	p, err := s.repo.FindByID(ctx, userID, placeID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var images []string
+	var images []Image
 	if p.ImageCount > 0 {
 		if images, err = s.repo.Images(ctx, placeID); err != nil {
 			return nil, nil, err
