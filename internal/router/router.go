@@ -36,16 +36,25 @@ func New(tokens *token.Manager, handlers ...Registrar) *gin.Engine {
 	return r
 }
 
-// devCors permits the Expo web client during local development. Production
-// deployments should put the API and web app behind the same origin or replace
-// this middleware with an allow-list for the deployed web origin.
+// corsOrigins lists the web clients allowed to call the API from a browser:
+// the local Expo web client and the deployed Vercel app.
+var corsOrigins = map[string]bool{
+	"http://localhost:8081":         true,
+	"http://127.0.0.1:8081":         true,
+	"https://trippaw-web.vercel.app": true,
+}
+
+// devCors permits the web clients in corsOrigins. ngrok-skip-browser-warning
+// is allowed so the Vercel app can reach the API through an ngrok free tunnel
+// without hitting its browser interstitial.
 func devCors() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
-		if origin == "http://localhost:8081" || origin == "http://127.0.0.1:8081" {
+		if corsOrigins[origin] {
+			c.Header("Vary", "Origin")
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Access-Control-Allow-Credentials", "true")
-			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, ngrok-skip-browser-warning")
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
 		}
 		if c.Request.Method == http.MethodOptions {
